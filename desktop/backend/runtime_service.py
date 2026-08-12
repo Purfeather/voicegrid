@@ -20,7 +20,7 @@ class RuntimeService:
             if module_id == "speech":
                 WORKERS.release()
                 return
-            if module_id == "voice_design":
+            if module_id in {"voice_design", "sound_effect"}:
                 ENGINE.release()
                 return
             raise ValueError("未知的运行模块。")

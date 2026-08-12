@@ -18,6 +18,7 @@ from .paths import (
     ROOT,
     SOUND_EFFECT_MODEL_DIR,
     SOUND_EFFECT_RUNTIME_DIR,
+    SOUND_EFFECT_SOURCE_DIR,
     MOSS_CODEC_DIR,
     MOSS_MODEL_DIR,
     VOICE_GENERATOR_CODEC_DIR,
@@ -91,14 +92,14 @@ MODULES: dict[str, dict[str, Any]] = {
         "disk_gb": 18.0,
         "runtime_python": "Python 3.12（必需）",
         "runtime_mode": "isolated",
-        "engine_available": False,
-        "engine_message": "界面与安装平台已就绪；真实推理将在音色设计验收后接入。",
+        "engine_available": True,
+        "engine_message": "使用 Python 3.12 独立工作进程、FP16 与阶段式低显存调度。",
     },
 }
 
 RUNTIME_IMPORT_CHECKS = {
     "voice_design": "import torch, torchaudio, transformers, modelscope, modelscope_hub, soundfile, librosa, tiktoken, accelerate, safetensors, orjson, tqdm, yaml, einops, scipy, psutil, packaging",
-    "sound_effect": "import torch, torchaudio, torchvision, transformers, modelscope_hub, soundfile, diffusers, audiotools",
+    "sound_effect": "import torch, torchaudio, torchvision, transformers, modelscope_hub, soundfile, diffusers, audiotools, moss_soundeffect_v2; from moss_soundeffect_v2 import MossSoundEffectPipeline",
 }
 RUNTIME_VERSION_LOCKS = {
     "voice_design": {
@@ -122,19 +123,32 @@ RUNTIME_VERSION_LOCKS = {
         "packaging": "26.3",
     },
     "sound_effect": {
+        "moss-soundeffect-v2": "0.1.0",
         "torch": "2.9.0+cu128",
         "torchaudio": "2.9.0+cu128",
         "torchvision": "0.24.0+cu128",
         "transformers": "4.57.1",
+        "modelscope": "1.39.1",
+        "modelscope-hub": "0.2.0",
+        "einops": "0.8.2",
+        "pillow": "12.2.0",
+        "tqdm": "4.67.3",
         "safetensors": "0.7.0",
         "numpy": "1.26.4",
         "diffusers": "0.37.1",
+        "ftfy": "6.3.1",
+        "regex": "2026.4.4",
+        "soundfile": "0.13.1",
+        "descript-audiotools": "0.7.2",
     },
 }
 RUNTIME_PYTHON_LOCKS = {
     "voice_design": (3, 12),
     "sound_effect": (3, 12),
 }
+
+SOUND_EFFECT_SOURCE_REVISION = "58b20a0d5fcc6766658d50967a90a9d890009a46"
+SOUND_EFFECT_SOURCE_TREE_SHA256 = "09dc5d50d7e9659383ab693f0addc85a17bb2855e6dbbc2929f84d99538bac70"
 
 
 def _append_module_log(module_id: str, message: str) -> None:
@@ -206,6 +220,46 @@ def _requirements_sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def _sound_effect_source_dir() -> Path | None:
+    configured = os.environ.get("VOICEGRID_SOUND_EFFECT_SOURCE", "").strip()
+    candidates = [
+        Path(configured).expanduser() if configured else None,
+        SOUND_EFFECT_SOURCE_DIR / "moss_soundeffect_v2",
+        ROOT / "desktop" / "workers" / "vendor" / "moss_soundeffect_v2",
+    ]
+    for candidate in candidates:
+        if candidate is None:
+            continue
+        resolved = candidate.resolve()
+        pyproject = resolved / "pyproject.toml"
+        pipeline = resolved / "pipeline_moss_soundeffect.py"
+        marker = resolved / ".voicegrid-source.json"
+        marker_valid = False
+        if marker.is_file():
+            try:
+                source_state = json.loads(marker.read_text(encoding="utf-8"))
+                marker_valid = (
+                    source_state.get("revision") == SOUND_EFFECT_SOURCE_REVISION
+                    and source_state.get("tree_sha256") == SOUND_EFFECT_SOURCE_TREE_SHA256
+                )
+            except Exception:
+                marker_valid = False
+        if pyproject.is_file() and pipeline.is_file() and (configured or marker_valid):
+            return resolved
+    return None
+
+
+def _python312_venv_command(destination: Path) -> list[str]:
+    configured = os.environ.get("VOICEGRID_PYTHON312", "").strip()
+    if configured:
+        return [configured, "-m", "venv", str(destination)]
+    if sys.version_info[:2] == (3, 12):
+        return [sys.executable, "-m", "venv", str(destination)]
+    if os.name == "nt":
+        return ["py", "-3.12", "-m", "venv", str(destination)]
+    return ["python3.12", "-m", "venv", str(destination)]
+
+
 class ModuleService:
     def __init__(self) -> None:
         self.lock = threading.RLock()
@@ -275,6 +329,8 @@ class ModuleService:
                 state = json.loads(marker.read_text(encoding="utf-8"))
                 if state.get("requirements_sha256") != _requirements_sha256(requirements):
                     return False
+                if module_id == "sound_effect" and state.get("source_revision") != SOUND_EFFECT_SOURCE_REVISION:
+                    return False
             creationflags = subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
             package_names = list(RUNTIME_VERSION_LOCKS[module_id])
             version_script = (
@@ -313,9 +369,10 @@ class ModuleService:
             if mismatches:
                 _append_module_log(module_id, f"PACKAGE VERSION MISMATCH: {json.dumps(mismatches, ensure_ascii=False)}")
                 return False
-            if module_id == "voice_design":
+            if module_id in {"voice_design", "sound_effect"}:
+                probe_script = "runtime_audio_probe.py" if module_id == "voice_design" else "sound_effect_runtime_probe.py"
                 audio_probe = subprocess.run(
-                    [str(python), str(ROOT / "desktop" / "workers" / "runtime_audio_probe.py")],
+                    [str(python), str(ROOT / "desktop" / "workers" / probe_script)],
                     cwd=ROOT,
                     capture_output=True,
                     text=True,
@@ -331,7 +388,13 @@ class ModuleService:
                     )
                     return False
                 audio_result = json.loads(audio_probe.stdout.strip().splitlines()[-1])
-                if audio_result.get("format") != "WAV" or audio_result.get("subtype") != "PCM_24":
+                expected_rate = 24_000 if module_id == "voice_design" else 48_000
+                if (
+                    audio_result.get("format") != "WAV"
+                    or audio_result.get("subtype") != "PCM_24"
+                    or int(audio_result.get("sample_rate", 0)) != expected_rate
+                    or int(audio_result.get("channels", 0)) != 1
+                ):
                     _append_module_log(module_id, f"AUDIO PROBE MISMATCH: {json.dumps(audio_result, ensure_ascii=False)}")
                     return False
             if not marker.is_file():
@@ -542,7 +605,13 @@ class ModuleService:
                 previous_runtime = runtime.parent / f".{runtime.name}.previous"
                 if staging_runtime.exists():
                     shutil.rmtree(staging_runtime)
-                self._run_step(module_id, [sys.executable, "-m", "venv", str(staging_runtime)], "runtime", "正在创建独立运行环境", 0.06)
+                self._run_step(
+                    module_id,
+                    _python312_venv_command(staging_runtime),
+                    "runtime",
+                    "正在创建 Python 3.12 独立运行环境",
+                    0.06,
+                )
                 staging_python = str(_runtime_python(staging_runtime))
                 self._run_step(
                     module_id,
@@ -551,11 +620,41 @@ class ModuleService:
                     "正在安装锁定依赖",
                     0.18,
                 )
+                if module_id == "sound_effect":
+                    source = _sound_effect_source_dir()
+                    if source is None:
+                        self._run_step(
+                            module_id,
+                            [
+                                sys.executable,
+                                str(ROOT / "desktop" / "workers" / "source_downloader.py"),
+                                "--repository", "OpenMOSS/MOSS-TTS",
+                                "--revision", SOUND_EFFECT_SOURCE_REVISION,
+                                "--subdirectory", "moss_soundeffect_v2",
+                                "--destination", str(SOUND_EFFECT_SOURCE_DIR / "moss_soundeffect_v2"),
+                                "--tree-sha256", SOUND_EFFECT_SOURCE_TREE_SHA256,
+                            ],
+                            "runtime-source-download",
+                            "正在下载锁定版本的官方推理源码",
+                            0.34,
+                            0.02,
+                        )
+                        source = _sound_effect_source_dir()
+                    if source is None:
+                        raise RuntimeError("官方 MOSS-SoundEffect v2 推理源码下载或校验失败。")
+                    self._run_step(
+                        module_id,
+                        [staging_python, "-m", "pip", "install", "--no-deps", str(source)],
+                        "runtime-source",
+                        "正在安装本地官方 MOSS-SoundEffect v2.0 推理源码",
+                        0.36,
+                    )
                 (staging_runtime / ".voicegrid-runtime.json").write_text(
                     json.dumps(
                         {
                             "module": module_id,
                             "requirements_sha256": _requirements_sha256(requirements),
+                            "source_revision": SOUND_EFFECT_SOURCE_REVISION if module_id == "sound_effect" else None,
                             "completed_at": datetime.now().isoformat(timespec="seconds"),
                         },
                         ensure_ascii=False,

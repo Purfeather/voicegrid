@@ -1,7 +1,6 @@
 torch==2.9.0+cu128
 torchaudio==2.9.0+cu128
 torchvision==0.24.0+cu128
-torchcodec==0.8.0
 transformers==4.57.1
 numpy==1.26.4
 modelscope==1.39.1

@@ -31,6 +31,7 @@ SOUND_EFFECT_MODEL_DIR = OPTIONAL_MODELS_DIR / "MOSS-SoundEffect-v2.0"
 RUNTIMES_DIR = ROOT / "runtimes"
 VOICE_GENERATOR_RUNTIME_DIR = RUNTIMES_DIR / "moss-voice-generator"
 SOUND_EFFECT_RUNTIME_DIR = RUNTIMES_DIR / "moss-soundeffect-v2"
+SOUND_EFFECT_SOURCE_DIR = RUNTIMES_DIR / "sources" / "moss-soundeffect-v2"
 MODULE_STATE_DIR = DATA_DIR / "modules"
 LOGS_DIR = Path(os.environ.get("MOSS_TTS_LOGS_DIR", RUNTIME_ROOT / "logs")).resolve()
 
