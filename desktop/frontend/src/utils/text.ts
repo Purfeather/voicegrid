@@ -1,5 +1,38 @@
+export const PAUSE_MARKER = "[pause 1.0s]";
+export const PAUSE_MARKER_PATTERN = /\[pause\s+(\d+(?:\.\d+)?)s\]/gu;
+
+function protectPauseMarkers(value: string): { text: string; markers: Map<string, string> } {
+  const markers = new Map<string, string>();
+  const text = value.replace(PAUSE_MARKER_PATTERN, (marker) => {
+    for (let codepoint = 0xe000; codepoint <= 0xf8ff; codepoint += 1) {
+      const token = String.fromCharCode(codepoint);
+      if (!value.includes(token) && !markers.has(token)) {
+        markers.set(token, marker);
+        return token;
+      }
+    }
+    throw new Error("停顿标记数量过多，无法安全切分文本。");
+  });
+  return { text, markers };
+}
+
+export function countSpokenCharacters(value: string): number {
+  return value.replace(PAUSE_MARKER_PATTERN, "").trim().length;
+}
+
+export function insertPauseMarker(value: string, position: number | null): { value: string; cursor: number } {
+  const insertion = position === null ? value.length : Math.max(0, Math.min(value.length, position));
+  return {
+    value: `${value.slice(0, insertion)}${PAUSE_MARKER}${value.slice(insertion)}`,
+    cursor: insertion + PAUSE_MARKER.length,
+  };
+}
+
 export function splitText(value: string, maxChars: number): string[] {
-  const text = value.replace(/\r\n?/g, "\n").trim();
+  const normalized = value.replace(/\r\n?/g, "\n").trim();
+  if (!normalized) return [];
+  const protectedText = protectPauseMarkers(normalized);
+  const text = protectedText.text;
   if (!text) return [];
   const limit = Math.max(20, maxChars);
   const units = text.split(/(?<=[。！？!?；;：:\n])/u).filter(Boolean);
@@ -26,7 +59,7 @@ export function splitText(value: string, maxChars: number): string[] {
     }
   }
   if (current) result.push(current);
-  return result;
+  return result.map((segment) => Array.from(segment, (character) => protectedText.markers.get(character) ?? character).join(""));
 }
 
 export function formatDuration(seconds: number | null | undefined): string {

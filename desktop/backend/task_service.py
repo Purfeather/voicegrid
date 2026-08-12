@@ -7,7 +7,7 @@ from concurrent.futures import Future, ThreadPoolExecutor
 from pathlib import Path
 from typing import Any
 
-from app.model_engine import ENGINE, TaskCancelled, split_text
+from app.model_engine import ENGINE, PAUSE_MARKER_PATTERN, TaskCancelled, split_text
 
 from .audio import prepare_trimmed_reference
 from .events import EVENTS
@@ -38,9 +38,14 @@ SPEED_TOKENS_PER_CHAR = {
 
 def estimate_speed_tokens(text: str, level: str) -> int:
     """Estimate duration-control frames from effective character count and a named speed tier."""
-    effective_chars = len(re.sub(r"\s+", "", text or ""))
+    source = text or ""
+    pause_seconds = sum(float(match.group(1)) for match in PAUSE_MARKER_PATTERN.finditer(source))
+    spoken_text = PAUSE_MARKER_PATTERN.sub("", source)
+    effective_chars = len(re.sub(r"\s+", "", spoken_text))
     factor = SPEED_TOKENS_PER_CHAR.get(level, SPEED_TOKENS_PER_CHAR["中等"])
-    return max(13, int(effective_chars * factor + .5))
+    spoken_tokens = max(13, int(effective_chars * factor + .5))
+    pause_tokens = int(pause_seconds * 12.5 + .5)
+    return spoken_tokens + pause_tokens
 
 
 def build_generation_snapshot(workspace: dict[str, Any]) -> dict[str, Any]:

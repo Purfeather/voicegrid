@@ -59,6 +59,7 @@
 .protectedNote { position: absolute; inset: auto 12px 8px auto; display: flex; align-items: center; gap: 4px; color: var(--text-muted); font-size: 9px; pointer-events: none; }
 
 .editorMeta { display: flex; align-items: center; gap: 4px; }
+.pauseInsert { min-height: 28px; padding: 3px 8px; font-size: 10px; }
 .editorWrap { height: calc(100% - 52px); min-height: 0; padding: 10px 12px 12px; }
 .scriptEditor { height: 100%; min-height: 180px; resize: none; border: 0; border-radius: 0; padding: 12px 14px; background: var(--surface-sunken); font-size: 15px; line-height: 1.85; }
 .scriptEditor:focus { outline: 0; box-shadow: inset 0 0 0 1px var(--accent); }

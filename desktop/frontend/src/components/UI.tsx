@@ -1,3 +1,4 @@
+import { forwardRef } from "react";
 import type { ButtonHTMLAttributes, HTMLAttributes, InputHTMLAttributes, ReactNode, SelectHTMLAttributes, TextareaHTMLAttributes } from "react";
 import { LoaderCircle, X } from "lucide-react";
 import styles from "./ui.module.css";
@@ -45,9 +46,9 @@ export function Select({ className = "", ...props }: SelectHTMLAttributes<HTMLSe
   return <select className={`${styles.input} ${className}`} {...props} />;
 }
 
-export function TextArea({ className = "", ...props }: TextareaHTMLAttributes<HTMLTextAreaElement>) {
-  return <textarea className={`${styles.textarea} ${className}`} {...props} />;
-}
+export const TextArea = forwardRef<HTMLTextAreaElement, TextareaHTMLAttributes<HTMLTextAreaElement>>(function TextArea({ className = "", ...props }, ref) {
+  return <textarea ref={ref} className={`${styles.textarea} ${className}`} {...props} />;
+});
 
 export function Badge({ tone = "neutral", children }: { tone?: "neutral" | "success" | "warning" | "danger" | "accent"; children: ReactNode }) {
   return <span className={`${styles.badge} ${styles[`badge_${tone}`]}`}>{children}</span>;

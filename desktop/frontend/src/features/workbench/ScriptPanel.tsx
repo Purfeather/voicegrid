@@ -1,8 +1,8 @@
-import { useMemo, useState } from "react";
-import { AlignLeft, BookmarkPlus, Languages, Lock, Scissors, Sparkles, Trash2, X } from "lucide-react";
+import { useMemo, useRef, useState } from "react";
+import { AlignLeft, BookmarkPlus, Clock3, Lock, Scissors, Trash2, X } from "lucide-react";
 import type { SpeedLevel, StylePreset, WorkspaceDraft } from "../../types";
 import { api } from "../../services/api";
-import { splitText } from "../../utils/text";
+import { countSpokenCharacters, insertPauseMarker, splitText } from "../../utils/text";
 import { Badge, Button, Field, IconButton, Section, Select, TextArea, TextInput } from "../../components/UI";
 import styles from "./workbench.module.css";
 
@@ -17,9 +17,10 @@ interface Props {
 
 export function ScriptPanel({ workspace, stylesList, languages, onWorkspace, onStylesChanged, onMessage }: Props) {
   const [customName, setCustomName] = useState("");
+  const editorRef = useRef<HTMLTextAreaElement>(null);
   const segments = useMemo(() => splitText(workspace.text, workspace.parameters.segment_chars), [workspace.text, workspace.parameters.segment_chars]);
   const selectedStyle = stylesList.find((style) => style.name === workspace.style);
-  const count = workspace.text.trim().length;
+  const count = countSpokenCharacters(workspace.text);
 
   const speedLevels: SpeedLevel[] = ["慢", "较慢", "中等", "较快", "快"];
   const speedIndex = Math.max(0, speedLevels.indexOf(workspace.manual_speed_level));
@@ -50,6 +51,17 @@ export function ScriptPanel({ workspace, stylesList, languages, onWorkspace, onS
       if (fallback) onWorkspace({ style: fallback.name, instruction: fallback.instruction });
       onMessage("自定义风格已删除。", "success");
     } catch (error) { onMessage(error instanceof Error ? error.message : "删除失败", "error"); }
+  }
+
+  function addOneSecondPause() {
+    const editor = editorRef.current;
+    const position = editor && document.activeElement === editor ? editor.selectionEnd : null;
+    const insertion = insertPauseMarker(workspace.text, position);
+    onWorkspace({ text: insertion.value });
+    window.requestAnimationFrame(() => {
+      editorRef.current?.focus();
+      editorRef.current?.setSelectionRange(insertion.cursor, insertion.cursor);
+    });
   }
 
   return (
@@ -94,15 +106,15 @@ export function ScriptPanel({ workspace, stylesList, languages, onWorkspace, onS
         </div>
       </Section>
 
-      <Section title="配音文本" eyebrow="Script" className={styles.editorSection} actions={<div className={styles.editorMeta}><Badge tone={count > workspace.parameters.segment_chars ? "warning" : "neutral"}>{count} 字</Badge><IconButton label="清空配音文本" disabled={!workspace.text} onClick={() => onWorkspace({ text: "" })}><X size={16} /></IconButton></div>}>
+      <Section title="配音文本" eyebrow="Script" className={styles.editorSection} actions={<div className={styles.editorMeta}><Button className={styles.pauseInsert} variant="ghost" icon={<Clock3 size={14} />} onMouseDown={(event) => event.preventDefault()} onClick={addOneSecondPause}>插入一秒间隔</Button><Badge tone={count > workspace.parameters.segment_chars ? "warning" : "neutral"}>{count} 字</Badge><IconButton label="清空配音文本" disabled={!workspace.text} onClick={() => onWorkspace({ text: "" })}><X size={16} /></IconButton></div>}>
         <div className={styles.editorWrap}>
-          <TextArea className={styles.scriptEditor} aria-label="配音文本" spellCheck={false} value={workspace.text} onChange={(event) => onWorkspace({ text: event.target.value })} placeholder="输入或粘贴需要配音的文本…" />
+          <TextArea ref={editorRef} className={styles.scriptEditor} aria-label="配音文本" spellCheck={false} value={workspace.text} onChange={(event) => onWorkspace({ text: event.target.value })} placeholder="输入或粘贴需要配音的文本…" />
         </div>
       </Section>
 
       <Section title="切分预览" eyebrow="Live segmentation" className={styles.segmentSection} actions={<Badge tone="accent"><Scissors size={12} />{segments.length} 段</Badge>}>
         <div className={styles.segmentList} aria-live="polite">
-          {segments.length ? segments.map((segment, index) => <article key={`${index}-${segment.slice(0, 16)}`}><span>{String(index + 1).padStart(2, "0")}</span><p>{segment}</p><strong>{segment.length} 字</strong></article>) : <div className={styles.segmentEmpty}><AlignLeft size={18} /><span>输入文本后会立即显示切分结果。</span></div>}
+          {segments.length ? segments.map((segment, index) => <article key={`${index}-${segment.slice(0, 16)}`}><span>{String(index + 1).padStart(2, "0")}</span><p>{segment}</p><strong>{countSpokenCharacters(segment)} 字</strong></article>) : <div className={styles.segmentEmpty}><AlignLeft size={18} /><span>输入文本后会立即显示切分结果。</span></div>}
         </div>
       </Section>
     </div>

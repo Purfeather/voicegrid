@@ -223,6 +223,11 @@ class ModelContractTests(unittest.TestCase):
         self.assertEqual(actual, expected)
         self.assertEqual(list(actual.values()), sorted(actual.values(), reverse=True))
         self.assertEqual(estimate_speed_tokens("你 好\n世 界", "中等"), 13)
+        self.assertEqual(
+            estimate_speed_tokens("这是测试文本。[pause 1.0s]继续。", "中等")
+            - estimate_speed_tokens("这是测试文本。继续。", "中等"),
+            13,
+        )
 
     def test_legacy_duration_migrates_to_automatic_speed(self) -> None:
         payload = repository.default_workspace("Chinese", Path("outputs"))
@@ -286,6 +291,13 @@ class ModelContractTests(unittest.TestCase):
         segments = split_text("第一句用于测试。第二句继续测试。第三句也完整保留。", 20)
         self.assertGreater(len(segments), 1)
         self.assertTrue(all(len(segment) <= 20 for segment in segments))
+
+    def test_text_split_never_breaks_native_pause_marker(self) -> None:
+        text = "第一段较长的测试台词[pause 3.2s]第二段继续完整说完。"
+        segments = split_text(text, 20)
+        self.assertEqual("".join(segments), text)
+        self.assertEqual(sum("[pause 3.2s]" in segment for segment in segments), 1)
+        self.assertNotIn("[pause 3.2s]", segments)
 
 
 if __name__ == "__main__":

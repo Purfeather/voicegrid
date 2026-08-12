@@ -27,10 +27,28 @@ class TaskCancelled(RuntimeError):
     pass
 
 
+PAUSE_MARKER_PATTERN = re.compile(r"\[pause\s+(\d+(?:\.\d+)?)s\]")
+
+
+def _protect_pause_markers(text: str) -> tuple[str, dict[str, str]]:
+    markers: dict[str, str] = {}
+
+    def replace(match: re.Match[str]) -> str:
+        for codepoint in range(0xE000, 0xF8FF + 1):
+            token = chr(codepoint)
+            if token not in text and token not in markers:
+                markers[token] = match.group(0)
+                return token
+        raise ValueError("停顿标记数量过多，无法安全切分文本。")
+
+    return PAUSE_MARKER_PATTERN.sub(replace, text), markers
+
+
 def split_text(text: str, max_chars: int) -> list[str]:
     normalized = re.sub(r"\r\n?", "\n", (text or "").strip())
     if not normalized:
         return []
+    normalized, pause_markers = _protect_pause_markers(normalized)
     limit = max(20, int(max_chars))
     units = re.split(r"(?<=[。！？!?；;：:\n])", normalized)
     result: list[str] = []
@@ -53,7 +71,7 @@ def split_text(text: str, max_chars: int) -> list[str]:
             current = unit
     if current:
         result.append(current)
-    return result
+    return ["".join(pause_markers.get(character, character) for character in segment) for segment in result]
 
 
 class ModelEngine:
