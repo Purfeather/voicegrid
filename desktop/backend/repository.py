@@ -410,13 +410,15 @@ def delete_style(name: str) -> None:
 def insert_task(task: dict[str, Any]) -> None:
     with DB.transaction() as connection:
         connection.execute(
-            "INSERT INTO tasks(id,project_id,status,progress,message,payload_json,result_id,error,cancel_requested,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)",
-            (task["id"], task["project_id"], task["status"], task["progress"], task["message"], json.dumps(task["payload"], ensure_ascii=False), None, None, 0, task["created_at"], task["updated_at"]),
+            "INSERT INTO tasks(id,project_id,status,progress,message,payload_json,result_id,error,cancel_requested,remove_after_stop,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
+            (task["id"], task["project_id"], task["status"], task["progress"], task["message"], json.dumps(task["payload"], ensure_ascii=False), None, None, 0, 0, task["created_at"], task["updated_at"]),
         )
 
 
 def _task_from_row(row) -> dict[str, Any]:
-    return {key: row[key] for key in ("id", "project_id", "status", "progress", "message", "result_id", "error", "created_at", "updated_at")}
+    task = {key: row[key] for key in ("id", "project_id", "status", "progress", "message", "result_id", "error", "created_at", "updated_at")}
+    task["remove_after_stop"] = bool(row["remove_after_stop"])
+    return task
 
 
 def get_task(task_id: str) -> dict[str, Any]:
@@ -438,7 +440,7 @@ def list_tasks(project_id: str) -> list[dict[str, Any]]:
 
 
 def update_task(task_id: str, **changes: Any) -> dict[str, Any]:
-    allowed = {"status", "progress", "message", "result_id", "error", "cancel_requested"}
+    allowed = {"status", "progress", "message", "result_id", "error", "cancel_requested", "remove_after_stop"}
     updates = {key: value for key, value in changes.items() if key in allowed}
     updates["updated_at"] = now()
     columns = ",".join(f"{key}=?" for key in updates)
@@ -455,6 +457,29 @@ def cancel_requested(task_id: str) -> bool:
 def clear_finished_tasks(project_id: str) -> None:
     with DB.transaction() as connection:
         connection.execute("DELETE FROM tasks WHERE project_id=? AND status NOT IN ('queued','running')", (project_id,))
+
+
+def delete_task(task_id: str) -> None:
+    task = get_task(task_id)
+    if task["status"] in {"queued", "running"}:
+        raise ValueError("任务仍在排队或运行，必须先安全停止。")
+    with DB.transaction() as connection:
+        connection.execute("DELETE FROM tasks WHERE id=?", (task_id,))
+
+
+def clear_project_activity(project_id: str, delete_files: bool = False) -> dict[str, int]:
+    get_project(project_id)
+    finished_tasks = DB.one(
+        "SELECT COUNT(*) AS count FROM tasks WHERE project_id=? AND status NOT IN ('queued','running')",
+        (project_id,),
+    )
+    outputs = DB.one("SELECT COUNT(*) AS count FROM outputs WHERE project_id=?", (project_id,))
+    clear_outputs(project_id, delete_files)
+    clear_finished_tasks(project_id)
+    return {
+        "tasks_removed": int(finished_tasks["count"] if finished_tasks else 0),
+        "outputs_removed": int(outputs["count"] if outputs else 0),
+    }
 
 
 def add_output(project_id: str, task_id: str, metadata: dict[str, Any]) -> dict[str, Any]:

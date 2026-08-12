@@ -49,6 +49,7 @@ CREATE TABLE IF NOT EXISTS tasks (
     result_id TEXT,
     error TEXT,
     cancel_requested INTEGER NOT NULL DEFAULT 0,
+    remove_after_stop INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
 );
@@ -90,6 +91,7 @@ class Database:
                 self.schema_changed = self._migrate()
                 self._seed_styles()
                 self.connection.execute("UPDATE tasks SET status='interrupted', message='应用上次退出时任务未完成', updated_at=? WHERE status IN ('queued','running')", (datetime.now().isoformat(timespec="seconds"),))
+                self.connection.execute("DELETE FROM tasks WHERE remove_after_stop=1 AND status NOT IN ('queued','running')")
                 self.connection.commit()
             except sqlite3.DatabaseError as exc:
                 self.last_error = str(exc)
@@ -109,10 +111,14 @@ class Database:
 
     def _migrate(self) -> bool:
         assert self.connection is not None
-        columns = {str(row["name"]) for row in self.connection.execute("PRAGMA table_info(projects)").fetchall()}
+        project_columns = {str(row["name"]) for row in self.connection.execute("PRAGMA table_info(projects)").fetchall()}
+        task_columns = {str(row["name"]) for row in self.connection.execute("PRAGMA table_info(tasks)").fetchall()}
         changed = False
-        if "voice_id" not in columns:
+        if "voice_id" not in project_columns:
             self.connection.execute("ALTER TABLE projects ADD COLUMN voice_id TEXT")
+            changed = True
+        if "remove_after_stop" not in task_columns:
+            self.connection.execute("ALTER TABLE tasks ADD COLUMN remove_after_stop INTEGER NOT NULL DEFAULT 0")
             changed = True
         return changed
 

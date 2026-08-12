@@ -160,6 +160,18 @@ export interface TaskRecord {
   updated_at: string;
   result_id: string | null;
   error: string | null;
+  remove_after_stop: boolean;
+}
+
+export interface TaskRemovalResult {
+  task_id: string;
+  pending: boolean;
+  task: TaskRecord | null;
+}
+
+export interface ActivityClearResult {
+  tasks_removed: number;
+  outputs_removed: number;
 }
 
 export interface HardwareMetrics {
@@ -225,6 +237,6 @@ export interface BootstrapPayload {
 }
 
 export interface AppEvent {
-  type: "task.updated" | "runtime.updated" | "metrics.updated" | "project.saved";
+  type: "task.updated" | "task.removed" | "activity.cleared" | "runtime.updated" | "metrics.updated" | "project.saved";
   payload: unknown;
 }

@@ -134,6 +134,57 @@ class RepositoryTests(unittest.TestCase):
             finally:
                 database.close()
 
+    def test_task_removal_and_activity_clear_preserve_active_tasks_and_files(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            database = Database(root / "app.db")
+            database.initialize()
+            try:
+                with patch.object(repository, "DB", database), patch.object(repository, "PROJECTS_DIR", root / "projects"):
+                    created = repository.create_project("活动清理", "Chinese")
+                    audio = root / "kept.wav"
+                    audio.write_bytes(b"RIFF")
+                    with database.transaction() as connection:
+                        for task_id, status in (("task-active", "running"), ("task-finished", "failed")):
+                            connection.execute(
+                                "INSERT INTO tasks(id,project_id,status,progress,message,payload_json,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?)",
+                                (task_id, created["id"], status, 0, status, "{}", "2026-08-12T10:00:00", "2026-08-12T10:00:00"),
+                            )
+                    metadata = {
+                        "path": str(audio), "filename": audio.name, "created_at": "2026-08-12T12:00:00",
+                        "duration": 1.0, "sample_rate": 24000, "channels": 1, "bit_depth": 24, "format": "WAV",
+                        "generation_snapshot": build_generation_snapshot(created["workspace"]),
+                    }
+                    repository.add_output(created["id"], "task-output", metadata)
+                    repository.delete_task("task-finished")
+                    self.assertIsNone(database.one("SELECT id FROM tasks WHERE id='task-finished'"))
+                    with self.assertRaises(ValueError):
+                        repository.delete_task("task-active")
+
+                    result = repository.clear_project_activity(created["id"], False)
+                    self.assertEqual(result["outputs_removed"], 1)
+                    self.assertIsNotNone(database.one("SELECT id FROM tasks WHERE id='task-active'"))
+                    self.assertTrue(audio.exists())
+                    payload = json.loads((root / "projects" / created["id"] / "project.json").read_text(encoding="utf-8"))
+                    self.assertEqual(payload["output_snapshots"], {})
+            finally:
+                database.close()
+
+    def test_remove_after_stop_column_migrates_and_is_exposed(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            database = Database(Path(temporary) / "app.db")
+            database.initialize()
+            try:
+                with patch.object(repository, "DB", database):
+                    with database.transaction() as connection:
+                        connection.execute(
+                            "INSERT INTO tasks(id,project_id,status,progress,message,payload_json,remove_after_stop,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)",
+                            ("task-pending-remove", "project", "running", 0, "停止中", "{}", 1, "2026-08-12T10:00:00", "2026-08-12T10:00:00"),
+                        )
+                    self.assertTrue(repository.get_task("task-pending-remove")["remove_after_stop"])
+            finally:
+                database.close()
+
 
 class AudioOutputTests(unittest.TestCase):
     def test_output_engineering_persists_sidecar(self) -> None:

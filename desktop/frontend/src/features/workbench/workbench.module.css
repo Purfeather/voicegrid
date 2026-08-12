@@ -81,17 +81,26 @@
 .currentOutput strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; }
 .currentOutput span { color: var(--text-muted); font-size: 9px; }
 .currentOutput audio { width: 100%; height: 34px; }
+.settingsTrigger { min-height: 28px; padding: 3px 8px; font-size: 10px; }
 .outputActions { display: grid !important; grid-template-columns: 1fr 1fr; gap: 6px !important; }
-.generationDetails { border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); background: var(--surface-sunken); color: var(--text-secondary); font-size: 10px; }
-.generationDetails summary { padding: 8px 10px; cursor: pointer; color: var(--text-primary); font-weight: 700; }
-.generationDetails[open] summary { border-bottom: 1px solid var(--border-subtle); }
-.generationDetails dl { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1px; margin: 0; background: var(--border-subtle); }
-.generationDetails dl div { min-width: 0; display: grid; gap: 2px; padding: 7px 9px; background: var(--surface-panel); }
-.generationDetails dt { color: var(--text-muted); }
-.generationDetails dd { min-width: 0; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-primary); }
-.generationDetails > strong, .generationDetails > p, .generationDetails > ol { display: block; margin: 8px 10px; }
-.generationDetails > p { max-height: 64px; overflow: auto; white-space: pre-wrap; }
-.generationDetails > ol { max-height: 100px; overflow: auto; padding-inline-start: 18px; }
+.generationPopover { z-index: 1000; position: fixed; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; max-height: min(560px, calc(100vh - 24px)); border: 1px solid var(--border-strong); border-radius: var(--radius-lg); background: var(--surface-panel); color: var(--text-primary); box-shadow: var(--shadow-float); overflow: hidden; }
+.generationPopover > header { min-height: 52px; display: flex; align-items: center; justify-content: space-between; gap: 12px; border-bottom: 1px solid var(--border-subtle); padding: 8px 10px 8px 14px; }
+.generationPopover > header > div { display: grid; gap: 1px; }
+.generationPopover > header span { color: var(--text-muted); font: 700 8px var(--font-mono); letter-spacing: .1em; text-transform: uppercase; }
+.generationPopover > header strong { font-size: 13px; }
+.generationPopoverBody { min-height: 0; display: grid; align-content: start; gap: 12px; padding: 12px 14px; overflow-y: scroll; scrollbar-gutter: stable; overscroll-behavior: contain; }
+.generationPopoverBody section { display: grid; gap: 7px; }
+.generationPopoverBody section > strong { font-size: 10px; color: var(--text-secondary); }
+.generationPopoverBody p { margin: 0; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: 9px 10px; background: var(--surface-sunken); color: var(--text-secondary); font-size: 10px; line-height: 1.55; white-space: pre-wrap; }
+.generationFacts, .parameterFacts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1px; margin: 0; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); background: var(--border-subtle); overflow: hidden; }
+.generationFacts div, .parameterFacts div { min-width: 0; display: grid; gap: 2px; padding: 8px 9px; background: var(--surface-sunken); }
+.generationFacts dt, .parameterFacts dt { color: var(--text-muted); font-size: 9px; }
+.generationFacts dd, .parameterFacts dd { min-width: 0; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-primary); font: 700 10px var(--font-mono); }
+.generationPopoverBody ol { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.generationPopoverBody li { display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 7px; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: 7px 8px; color: var(--text-secondary); font-size: 10px; line-height: 1.5; }
+.generationPopoverBody li span { color: var(--accent); font: 700 9px var(--font-mono); }
+.generationPopover > footer { border-top: 1px solid var(--border-subtle); padding: 9px 12px; background: var(--surface-raised); }
+.generationPopover > footer button { width: 100%; }
 .downloadButton { min-height: 36px; display: inline-flex; align-items: center; justify-content: center; gap: 7px; border-radius: var(--radius-sm); background: var(--accent-gradient); color: var(--on-accent); font-weight: 700; text-decoration: none; }
 :root[data-theme="light"] .downloadButton { color: var(--on-accent); }
 
@@ -107,6 +116,8 @@
 .activityTask header { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
 .activityTask header > span { min-width: 0; display: flex; align-items: center; gap: 6px; }
 .activityTask header strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 10px; }
+.taskHeaderActions { flex: none; display: flex; align-items: center; gap: 3px; }
+.taskHeaderActions button { width: 28px; height: 28px; min-height: 28px; padding: 0; }
 .activityTask p { margin: 0; color: var(--danger); font-size: 9px; }
 .activityTask button { justify-self: end; min-height: 28px; padding-block: 3px; font-size: 10px; }
 .activityOutput { min-width: 0; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 8px; border: 0; border-bottom: 1px solid var(--border-subtle); padding: 9px 10px; background: transparent; color: inherit; text-align: start; }

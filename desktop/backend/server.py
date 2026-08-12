@@ -21,6 +21,7 @@ from .paths import ASSETS_DIR, FRONTEND_DIST, ensure_directories
 from .repository import (
     add_upload,
     artifact,
+    clear_project_activity,
     clear_finished_tasks,
     clear_outputs,
     close_project,
@@ -216,6 +217,16 @@ def project_history_clear(project_id: str, delete_files: bool = False):
         raise _translate_error(exc) from exc
 
 
+@app.delete("/api/v2/projects/{project_id}/activity")
+def project_activity_clear(project_id: str, delete_files: bool = False):
+    try:
+        result = clear_project_activity(project_id, delete_files)
+        EVENTS.publish("activity.cleared", {"project_id": project_id, **result})
+        return result
+    except Exception as exc:
+        raise _translate_error(exc) from exc
+
+
 @app.get("/api/v2/voices")
 def voices():
     return list_voices()
@@ -296,6 +307,14 @@ def task_get(task_id: str):
 def task_cancel(task_id: str):
     try:
         return TASKS.cancel(task_id)
+    except Exception as exc:
+        raise _translate_error(exc) from exc
+
+
+@app.delete("/api/v2/tasks/{task_id}")
+def task_remove(task_id: str):
+    try:
+        return TASKS.remove(task_id)
     except Exception as exc:
         raise _translate_error(exc) from exc
 

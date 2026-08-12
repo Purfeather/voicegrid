@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
-import { AudioLines, Ban, CircleAlert, Download, FileAudio2, FolderOpen, LoaderCircle, Trash2, WandSparkles } from "lucide-react";
-import type { OutputProfile, OutputRecord, TaskRecord, WorkspaceDraft } from "../../types";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import { AudioLines, Ban, BrushCleaning, CircleAlert, Download, FileAudio2, FolderOpen, LoaderCircle, RotateCcw, Settings2, Trash2, WandSparkles, X } from "lucide-react";
+import type { GenerationSnapshot, OutputProfile, OutputRecord, TaskRecord, WorkspaceDraft } from "../../types";
 import { api } from "../../services/api";
 import { selectFolder } from "../../services/native";
 import { Badge, Button, EmptyState, Field, IconButton, Progress, Section, Select, TextInput } from "../../components/UI";
@@ -16,8 +17,10 @@ interface Props {
   onWorkspace: (patch: Partial<WorkspaceDraft>) => void;
   onGenerate: () => Promise<void>;
   onCancel: (id: string) => Promise<void>;
-  onClearTasks: () => Promise<void>;
-  onClearHistory: () => Promise<void>;
+  onRemoveTask: (id: string) => Promise<void>;
+  onClearActivity: () => Promise<void>;
+  onOpenOutputFolder: () => Promise<void>;
+  onReuse: (snapshot: GenerationSnapshot) => void;
 }
 
 type ActivityFilter = "all" | "active" | "completed" | "exception";
@@ -25,12 +28,57 @@ type ActivityItem =
   | { kind: "task"; id: string; createdAt: string; task: TaskRecord }
   | { kind: "output"; id: string; createdAt: string; output: OutputRecord };
 
-export function OutputPanel({ workspace, tasks, history, generating, onWorkspace, onGenerate, onCancel, onClearTasks, onClearHistory }: Props) {
+const PARAMETER_LABELS: Array<[keyof GenerationSnapshot["parameters"], string]> = [
+  ["temperature", "Temperature"], ["top_p", "Top-P"], ["top_k", "Top-K"],
+  ["repetition_penalty", "重复惩罚"], ["max_seconds", "每段最大秒数"],
+  ["segment_chars", "每段最大字符"], ["pause_ms", "段间停顿（ms）"], ["seed", "随机种子"],
+];
+
+export function OutputPanel({ workspace, tasks, history, generating, onWorkspace, onGenerate, onCancel, onRemoveTask, onClearActivity, onOpenOutputFolder, onReuse }: Props) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [filter, setFilter] = useState<ActivityFilter>("all");
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [popoverPosition, setPopoverPosition] = useState({ top: 0, left: 0, width: 380 });
+  const settingsButton = useRef<HTMLDivElement>(null);
+  const settingsPopover = useRef<HTMLDivElement>(null);
   const profile = workspace.output_profile;
   const current = useMemo(() => history.find((item) => item.id === selectedId) || history[0] || null, [history, selectedId]);
   useEffect(() => { if (!selectedId && history[0]) setSelectedId(history[0].id); }, [history, selectedId]);
+  useEffect(() => { setSettingsOpen(false); }, [current?.id]);
+
+  useLayoutEffect(() => {
+    if (!settingsOpen) return;
+    const position = () => {
+      const anchor = settingsButton.current?.getBoundingClientRect();
+      if (!anchor) return;
+      const margin = 12;
+      const width = Math.min(380, window.innerWidth - margin * 2);
+      const height = Math.min(settingsPopover.current?.offsetHeight || 520, window.innerHeight - margin * 2);
+      const left = Math.max(margin, Math.min(anchor.right - width, window.innerWidth - width - margin));
+      const below = anchor.bottom + 8;
+      const top = below + height <= window.innerHeight - margin
+        ? below
+        : Math.max(margin, anchor.top - height - 8);
+      setPopoverPosition({ top, left, width });
+    };
+    const frame = window.requestAnimationFrame(position);
+    const closeOnOutside = (event: PointerEvent) => {
+      const target = event.target as Node;
+      if (!settingsPopover.current?.contains(target) && !settingsButton.current?.contains(target)) setSettingsOpen(false);
+    };
+    const closeOnEscape = (event: KeyboardEvent) => { if (event.key === "Escape") setSettingsOpen(false); };
+    window.addEventListener("resize", position);
+    window.addEventListener("scroll", position, true);
+    document.addEventListener("pointerdown", closeOnOutside);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.removeEventListener("resize", position);
+      window.removeEventListener("scroll", position, true);
+      document.removeEventListener("pointerdown", closeOnOutside);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [settingsOpen]);
 
   const activity = useMemo<ActivityItem[]>(() => {
     const outputTaskIds = new Set(history.map((record) => record.task_id));
@@ -79,32 +127,39 @@ export function OutputPanel({ workspace, tasks, history, generating, onWorkspace
         </div>
       </Section>
 
-      <Section title="当前输出" eyebrow="Monitor">
+      <Section title="当前输出" eyebrow="Monitor" actions={current?.generation_snapshot && <div ref={settingsButton}><Button className={styles.settingsTrigger} variant="ghost" icon={<Settings2 size={14} />} onClick={() => setSettingsOpen((value) => !value)}>生成设定</Button></div>}>
         {current ? <div className={styles.currentOutput}>
           <div><span className={styles.outputIcon}><AudioLines size={14} /></span><div><strong title={current.filename}>{current.filename}</strong><span>{current.format} · {current.sample_rate / 1000} kHz · {current.bit_depth} bit · {formatDuration(current.duration)}</span></div></div>
           <audio controls src={current.artifact_url} />
-          {current.generation_snapshot && <details className={styles.generationDetails}>
-            <summary>生成设定</summary>
-            <dl>
+          <div className={styles.outputActions}><Button icon={<FolderOpen size={15} />} onClick={() => api.openArtifact(current.id)}>打开目录</Button><a className={styles.downloadButton} href={api.artifactUrl(current.id, true)} download><Download size={15} />下载</a></div>
+        </div> : <EmptyState title="尚未生成音频" detail="生成完成后会先保存到活动记录，再自动出现在这里。" />}
+      </Section>
+
+      {settingsOpen && current?.generation_snapshot && createPortal(
+        <div ref={settingsPopover} className={styles.generationPopover} style={popoverPosition} role="dialog" aria-label="生成设定">
+          <header><div><span>Generation settings</span><strong>生成设定</strong></div><IconButton label="关闭生成设定" onClick={() => setSettingsOpen(false)}><X size={15} /></IconButton></header>
+          <div className={styles.generationPopoverBody}>
+            <dl className={styles.generationFacts}>
               <div><dt>风格</dt><dd>{current.generation_snapshot.style || "未命名"}</dd></div>
               <div><dt>语言</dt><dd>{current.generation_snapshot.language || "自动"}</dd></div>
               <div><dt>参数预设</dt><dd>{current.generation_snapshot.preset}</dd></div>
               <div><dt>目标时长</dt><dd>{current.generation_snapshot.target_duration_enabled ? `${current.generation_snapshot.target_duration_seconds} 秒 · ${current.generation_snapshot.target_tokens} tokens` : "自动"}</dd></div>
             </dl>
-            <strong>风格 / 情感提示</strong><p>{current.generation_snapshot.instruction || "未设置"}</p>
-            <strong>生成片段</strong><ol>{current.generation_snapshot.segments.map((segment) => <li key={segment.index}>{segment.text}</li>)}</ol>
-          </details>}
-          <div className={styles.outputActions}><Button icon={<FolderOpen size={15} />} onClick={() => api.openArtifact(current.id)}>打开目录</Button><a className={styles.downloadButton} href={api.artifactUrl(current.id, true)} download><Download size={15} />下载</a></div>
-        </div> : <EmptyState title="尚未生成音频" detail="生成完成后会先保存到活动记录，再自动出现在这里。" />}
-      </Section>
+            <section><strong>风格 / 情感提示</strong><p>{current.generation_snapshot.instruction || "未设置"}</p></section>
+            <section><strong>高级参数</strong><dl className={styles.parameterFacts}>{PARAMETER_LABELS.map(([key, label]) => <div key={key}><dt>{label}</dt><dd>{current.generation_snapshot!.parameters[key]}</dd></div>)}</dl></section>
+            <section><strong>生成片段</strong><ol>{current.generation_snapshot.segments.map((segment) => <li key={segment.index}><span>{String(segment.index).padStart(2, "0")}</span>{segment.text}</li>)}</ol></section>
+          </div>
+          <footer><Button variant="primary" icon={<RotateCcw size={15} />} onClick={() => { onReuse(current.generation_snapshot!); setSettingsOpen(false); }}>一键复用到当前设定</Button></footer>
+        </div>, document.body,
+      )}
 
       <Section
         title="任务与输出"
         eyebrow="Activity"
         className={styles.activitySection}
         actions={<div className={styles.activityActions}>
-          {tasks.length > 0 && <IconButton label="清理已结束任务" onClick={onClearTasks}><Trash2 size={14} /></IconButton>}
-          {history.length > 0 && <IconButton label="清空输出历史" onClick={onClearHistory}><FileAudio2 size={14} /></IconButton>}
+          <IconButton label="清除全部记录" disabled={!tasks.length && !history.length} onClick={onClearActivity}><BrushCleaning size={14} /></IconButton>
+          <IconButton label="打开输出文件夹" disabled={!profile.output_directory} onClick={onOpenOutputFolder}><FolderOpen size={14} /></IconButton>
         </div>}
       >
         <div className={styles.activityFilters} role="group" aria-label="活动记录筛选">
@@ -119,7 +174,7 @@ export function OutputPanel({ workspace, tasks, history, generating, onWorkspace
             </button>
           ) : (
             <article key={`task-${item.id}`} className={styles.activityTask}>
-              <header><span>{item.task.status === "running" ? <LoaderCircle className={styles.spin} size={14} /> : <CircleAlert size={14} />}<strong>{item.task.message}</strong></span><Badge tone={item.task.status === "failed" ? "danger" : item.task.status === "running" ? "accent" : "neutral"}>{item.task.status}</Badge></header>
+              <header><span>{item.task.status === "running" ? <LoaderCircle className={styles.spin} size={14} /> : <CircleAlert size={14} />}<strong>{item.task.message}</strong></span><div className={styles.taskHeaderActions}><Badge tone={item.task.status === "failed" ? "danger" : item.task.status === "running" ? "accent" : "neutral"}>{item.task.remove_after_stop ? "等待移除" : item.task.status}</Badge><IconButton label={item.task.remove_after_stop ? "任务结束后将自动移除" : "移除任务记录"} disabled={item.task.remove_after_stop} onClick={() => onRemoveTask(item.task.id)}>{item.task.remove_after_stop ? <LoaderCircle className={styles.spin} size={13} /> : <Trash2 size={13} />}</IconButton></div></header>
               <Progress value={item.task.progress} label={item.task.message} />
               {item.task.error && <p>{item.task.error}</p>}
               {(item.task.status === "running" || item.task.status === "queued") && <Button variant="ghost" icon={<Ban size={14} />} onClick={() => onCancel(item.task.id)}>安全停止</Button>}

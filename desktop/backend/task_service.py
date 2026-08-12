@@ -13,6 +13,7 @@ from .events import EVENTS
 from .repository import (
     add_output,
     cancel_requested,
+    delete_task,
     get_project,
     get_task,
     insert_task,
@@ -81,15 +82,28 @@ class TaskService:
             future = self.futures.get(task_id)
             cancelled = bool(future and future.cancel())
         if cancelled or task["status"] == "queued":
-            updated = update_task(task_id, status="cancelled", message="任务已取消", cancel_requested=1)
+            updated = self._publish_task(task_id, status="cancelled", message="任务已取消", cancel_requested=1)
         else:
-            updated = update_task(task_id, message="将在当前文本段结束后停止", cancel_requested=1)
-        EVENTS.publish("task.updated", updated)
+            message = "将在当前文本段结束后停止并移除" if task.get("remove_after_stop") else "将在当前文本段结束后停止"
+            updated = self._publish_task(task_id, message=message, cancel_requested=1)
         return updated
+
+    def remove(self, task_id: str) -> dict[str, Any]:
+        task = get_task(task_id)
+        if task["status"] in {"queued", "running"}:
+            update_task(task_id, remove_after_stop=1, message="正在安全停止，结束后自动移除")
+            task = self.cancel(task_id)
+            return {"task_id": task_id, "pending": task["status"] in {"queued", "running"}, "task": task}
+        delete_task(task_id)
+        EVENTS.publish("task.removed", {"id": task_id, "project_id": task["project_id"]})
+        return {"task_id": task_id, "pending": False, "task": None}
 
     def _publish_task(self, task_id: str, **changes: Any) -> dict[str, Any]:
         task = update_task(task_id, **changes)
         EVENTS.publish("task.updated", task)
+        if task.get("remove_after_stop") and task["status"] not in {"queued", "running"}:
+            delete_task(task_id)
+            EVENTS.publish("task.removed", {"id": task_id, "project_id": task["project_id"]})
         return task
 
     def _run(self, task_id: str) -> None:

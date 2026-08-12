@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import type { AppEvent, HardwareMetrics, ProjectDetail, RuntimeSnapshot, StylePreset, TaskRecord, ThemeId, VoiceAsset, WorkspaceDraft } from "../../types";
 import { api } from "../../services/api";
+import { openFolder } from "../../services/native";
 import { TitleBar } from "../../components/TitleBar";
 import { EmptyState } from "../../components/UI";
 import { VoicePanel } from "./VoicePanel";
@@ -9,6 +10,7 @@ import { ScriptPanel } from "./ScriptPanel";
 import { OutputPanel } from "./OutputPanel";
 import { ParameterRail } from "./ParameterRail";
 import styles from "./workbench.module.css";
+import { splitText } from "../../utils/text";
 
 interface Props {
   voices: VoiceAsset[];
@@ -57,6 +59,10 @@ export function Workbench(props: Props) {
       if (task.project_id !== projectId) return;
       setTasks((current) => [task, ...current.filter((item) => item.id !== task.id)].sort((a, b) => b.created_at.localeCompare(a.created_at)));
       if (task.status === "completed") refreshProject().catch(() => undefined);
+    }
+    if (event.type === "task.removed") {
+      const removed = event.payload as { id: string; project_id: string };
+      if (removed.project_id === projectId) setTasks((current) => current.filter((task) => task.id !== removed.id));
     }
   }, [projectId, props.event, refreshProject]);
 
@@ -118,7 +124,47 @@ export function Workbench(props: Props) {
       <div className={styles.workbenchMain}>
         <VoicePanel voices={props.voices} workspace={workspace} onWorkspace={updateWorkspace} onVoicesChanged={props.onRefreshResources} onMessage={props.onMessage} />
         <ScriptPanel workspace={workspace} stylesList={props.stylesList} languages={props.languages} onWorkspace={updateWorkspace} onStylesChanged={props.onRefreshResources} onMessage={props.onMessage} />
-        <OutputPanel projectId={project.id} workspace={workspace} tasks={tasks} history={project.history} generating={generating} onWorkspace={updateWorkspace} onGenerate={generate} onCancel={async (id) => { const task = await api.cancelTask(id); setTasks((current) => [task, ...current.filter((item) => item.id !== id)]); }} onClearTasks={async () => { await api.clearTasks(project.id); setTasks((current) => current.filter((task) => task.status === "queued" || task.status === "running")); }} onClearHistory={async () => { if (!window.confirm("清空历史记录列表吗？音频文件会保留。")) return; await api.clearHistory(project.id, false); setProject((current) => current ? { ...current, history: [], output_count: 0 } : current); }} />
+        <OutputPanel
+          projectId={project.id}
+          workspace={workspace}
+          tasks={tasks}
+          history={project.history}
+          generating={generating}
+          onWorkspace={updateWorkspace}
+          onGenerate={generate}
+          onCancel={async (id) => { const task = await api.cancelTask(id); setTasks((current) => [task, ...current.filter((item) => item.id !== id)]); }}
+          onRemoveTask={async (id) => {
+            const result = await api.removeTask(id);
+            if (result.pending && result.task) setTasks((current) => [result.task!, ...current.filter((item) => item.id !== id)]);
+            else setTasks((current) => current.filter((item) => item.id !== id));
+          }}
+          onClearActivity={async () => {
+            if (!window.confirm("清除全部任务与输出记录吗？已生成的音频文件和进行中任务会保留。")) return;
+            await api.clearActivity(project.id, false);
+            setTasks((current) => current.filter((task) => task.status === "queued" || task.status === "running"));
+            setProject((current) => current ? { ...current, history: [], output_count: 0 } : current);
+            props.onMessage("活动记录已清除，音频文件已保留。", "success");
+          }}
+          onOpenOutputFolder={async () => {
+            if (!await openFolder(workspace.output_profile.output_directory)) props.onMessage("无法打开当前输出目录。", "error");
+          }}
+          onReuse={(snapshot) => {
+            const styleExists = props.stylesList.some((style) => style.name === snapshot.style);
+            const segments = splitText(workspace.text, snapshot.parameters.segment_chars);
+            updateWorkspace({
+              language: snapshot.language,
+              instruction: snapshot.instruction,
+              ...(styleExists ? { style: snapshot.style } : {}),
+              preset: snapshot.preset,
+              parameters: { ...snapshot.parameters },
+              target_duration_enabled: snapshot.target_duration_enabled && segments.length === 1,
+              target_duration_seconds: snapshot.target_duration_seconds,
+            });
+            if (!styleExists) props.onMessage("原风格已不存在，已保留当前风格并复用提示词与参数。", "success");
+            else if (snapshot.target_duration_enabled && segments.length !== 1) props.onMessage("设定已复用；当前文本为多段，目标时长保持关闭。", "success");
+            else props.onMessage("生成设定已复用。", "success");
+          }}
+        />
       </div>
       <ParameterRail open={parameterOpen} workspace={workspace} onOpen={setParameterOpen} onWorkspace={updateWorkspace} />
     </main>

@@ -1,5 +1,6 @@
 import type {
   BootstrapPayload,
+  ActivityClearResult,
   CoreBootstrap,
   HealthSnapshot,
   HardwareMetrics,
@@ -9,6 +10,7 @@ import type {
   RuntimeSnapshot,
   StylePreset,
   TaskRecord,
+  TaskRemovalResult,
   VoiceAsset,
   WorkspaceDraft,
 } from "../types";
@@ -78,7 +80,9 @@ export const api = {
   }),
   tasks: (projectId: string) => request<TaskRecord[]>(`/tasks?project_id=${encodeURIComponent(projectId)}`),
   cancelTask: (id: string) => request<TaskRecord>(`/tasks/${id}/cancel`, { method: "POST" }),
+  removeTask: (id: string) => request<TaskRemovalResult>(`/tasks/${id}`, { method: "DELETE" }),
   clearTasks: (projectId: string) => request<void>(`/tasks?project_id=${encodeURIComponent(projectId)}`, { method: "DELETE" }),
+  clearActivity: (projectId: string, deleteFiles = false) => request<ActivityClearResult>(`/projects/${projectId}/activity?delete_files=${deleteFiles}`, { method: "DELETE" }),
   clearHistory: (projectId: string, deleteFiles = false) => request<void>(`/projects/${projectId}/history?delete_files=${deleteFiles}`, { method: "DELETE" }),
   history: (projectId: string) => request<OutputRecord[]>(`/projects/${projectId}/history`),
   runtime: () => request<RuntimeSnapshot>("/runtime"),
