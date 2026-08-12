@@ -197,13 +197,15 @@ class AudioOutputTests(unittest.TestCase):
             raw_dir.mkdir()
             source = raw_dir / "source.wav"
             sf.write(source, sine(24000, 1.0), 24000, subtype="PCM_24")
-            profile = {"format": "WAV", "sample_rate": 48000, "bit_depth": 24, "channels": 1, "loudness_lufs": -23, "filename_template": "{project}_{index}", "output_directory": str(root / "outputs")}
+            profile = {"format": "WAV", "sample_rate": 48000, "bit_depth": 24, "channels": 1, "loudness_lufs": -23, "filename_template": "BROKEN_{missing}", "output_directory": str(root / "outputs")}
             with patch.object(output_engineering, "RAW_OUTPUTS_DIR", raw_dir):
                 metadata = output_engineering.render_output(str(source), profile, "工程测试", "音色A", 1)
             target = Path(metadata["path"])
             self.assertTrue(target.is_file())
             self.assertTrue(target.with_suffix(".wav.json").is_file())
             self.assertEqual(metadata["sample_rate"], 48000)
+            self.assertRegex(target.name, r"^工程测试_音色A_001_\d{8}_\d{6}\.wav$")
+            self.assertNotIn("BROKEN", target.name)
 
 
 class ModelContractTests(unittest.TestCase):

@@ -116,7 +116,6 @@ export function OutputPanel({ workspace, tasks, history, generating, onWorkspace
             <Field label="声道" compact><Select value={profile.channels} onChange={(event) => updateProfile({ channels: Number(event.target.value) as 1 | 2 })}><option value={1}>单声道</option><option value={2}>立体声</option></Select></Field>
           </div>
           <Field label="目标响度" compact><div className={styles.rangeWithValue}><input type="range" min={-30} max={-12} step={1} value={profile.loudness_lufs ?? -23} onChange={(event) => updateProfile({ loudness_lufs: Number(event.target.value) })} /><strong>{profile.loudness_lufs ?? "关闭"} LUFS</strong></div></Field>
-          <Field label="文件名模板" compact><TextInput value={profile.filename_template} onChange={(event) => updateProfile({ filename_template: event.target.value })} /></Field>
           <Field label="输出目录" compact><div className={styles.pathField}><TextInput readOnly value={profile.output_directory} title={profile.output_directory} /><IconButton label="选择输出目录" onClick={chooseOutputDirectory}><FolderOpen size={16} /></IconButton></div></Field>
         </div>
       </Section>

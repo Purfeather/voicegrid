@@ -22,7 +22,6 @@ class OutputProfile(BaseModel):
     bit_depth: Literal[16, 24, 32] = 24
     channels: Literal[1, 2] = 1
     loudness_lufs: float | None = Field(default=-23.0, ge=-40, le=-6)
-    filename_template: str = Field(default="{project}_{voice}_{index}_{date}", min_length=1, max_length=160)
     output_directory: str = ""
 
 

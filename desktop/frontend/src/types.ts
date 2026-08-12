@@ -47,7 +47,6 @@ export interface OutputProfile {
   bit_depth: 16 | 24 | 32;
   channels: 1 | 2;
   loudness_lufs: number | null;
-  filename_template: string;
   output_directory: string;
 }
 

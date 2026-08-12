@@ -70,7 +70,6 @@ def default_workspace(language: str, output_directory: Path) -> dict[str, Any]:
             "bit_depth": 24,
             "channels": 1,
             "loudness_lufs": -23.0,
-            "filename_template": "{project}_{voice}_{index}_{date}",
             "output_directory": str(output_directory.resolve()),
         },
     }

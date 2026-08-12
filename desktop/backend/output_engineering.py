@@ -52,11 +52,6 @@ def _normalize_loudness(audio: np.ndarray, sample_rate: int, target_lufs: float 
     return normalized.astype(np.float32), measured
 
 
-class _SafeTemplate(dict):
-    def __missing__(self, key: str) -> str:
-        return "_" + key + "_"
-
-
 def render_output(source_path: str, profile: dict[str, Any], project_name: str, voice_name: str, index: int) -> dict[str, Any]:
     source = Path(source_path).resolve()
     if RAW_OUTPUTS_DIR.resolve() not in source.parents:
@@ -71,8 +66,12 @@ def render_output(source_path: str, profile: dict[str, Any], project_name: str, 
     extension = ".flac" if output_format == "FLAC" else ".wav"
     output_directory = Path(profile["output_directory"]).expanduser().resolve()
     output_directory.mkdir(parents=True, exist_ok=True)
-    template = str(profile.get("filename_template") or "{project}_{voice}_{index}_{date}")
-    filename = template.format_map(_SafeTemplate(project=_safe_filename(project_name), voice=_safe_filename(voice_name), index=f"{index:03d}", date=f"{datetime.now():%Y%m%d_%H%M%S}"))
+    filename = "_".join((
+        _safe_filename(project_name),
+        _safe_filename(voice_name),
+        f"{index:03d}",
+        f"{datetime.now():%Y%m%d_%H%M%S}",
+    ))
     target = output_directory / f"{_safe_filename(filename)}{extension}"
     requested_depth = int(profile.get("bit_depth", 24))
     bit_depth = 24 if extension == ".flac" and requested_depth == 32 else requested_depth
