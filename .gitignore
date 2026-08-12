@@ -53,3 +53,5 @@ desktop/frontend/coverage/
 # Generated hardware acceptance details (the concise signed-off report is tracked)
 desktop/tests/reports/voice-generator-20*.json
 desktop/tests/reports/voice-generator-20*.md
+desktop/tests/reports/sound-effect-20*.json
+desktop/tests/reports/sound-effect-20*.md

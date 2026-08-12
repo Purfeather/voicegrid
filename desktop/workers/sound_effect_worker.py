@@ -165,6 +165,24 @@ class SoundEffectWorker:
         if compiler is not None and hasattr(compiler, "cudagraph_mark_step_begin"):
             compiler.cudagraph_mark_step_begin = lambda: None
 
+    @staticmethod
+    def _move_preserving_complex_buffers(model: Any, *, device: str, dtype: Any) -> None:
+        """Cast model weights without destroying complex RoPE/DAC buffers."""
+        complex_buffers = {
+            name: buffer.detach().clone()
+            for name, buffer in model.named_buffers()
+            if getattr(buffer, "is_complex", lambda: False)()
+        }
+        for qualified_name in complex_buffers:
+            parent_name, _, buffer_name = qualified_name.rpartition(".")
+            parent = model.get_submodule(parent_name) if parent_name else model
+            parent._buffers[buffer_name] = None
+        model.to(device=device, dtype=dtype)
+        for qualified_name, buffer in complex_buffers.items():
+            parent_name, _, buffer_name = qualified_name.rpartition(".")
+            parent = model.get_submodule(parent_name) if parent_name else model
+            parent._buffers[buffer_name] = buffer.to(device=device)
+
     def _offload_all(self) -> None:
         if self.pipeline is None or self.torch is None:
             return
@@ -205,10 +223,10 @@ class SoundEffectWorker:
             model = getattr(engine, name, None)
             if model is not None:
                 model.eval()
-                model.to(device="cpu", dtype=torch.float16)
+                self._move_preserving_complex_buffers(model, device="cpu", dtype=torch.float16)
         if engine.vae is not None:
             engine.vae.eval()
-            engine.vae.to(device="cpu", dtype=torch.float32)
+            self._move_preserving_complex_buffers(engine.vae, device="cpu", dtype=torch.float32)
         self.pipeline = pipeline
         self.torch = torch
         self._offload_all()

@@ -18,6 +18,7 @@ from desktop.tools.voice_generator_acceptance import (
     run_case_with_retry,
     workspace_for,
 )
+from desktop.tools.sound_effect_acceptance import CASES as SOUND_EFFECT_CASES, GATE as SOUND_EFFECT_GATE, dry_run_plan as sound_effect_dry_run_plan, workspace_for as sound_effect_workspace_for
 
 
 class AcceptanceCommonTests(unittest.TestCase):
@@ -87,6 +88,17 @@ class AcceptanceCommonTests(unittest.TestCase):
             self.assertEqual(json.loads(json_path.read_text(encoding="utf-8"))["title"], "音色设计验收")
             self.assertIn("中文项目", markdown_path.read_text(encoding="utf-8"))
             self.assertFalse(json_path.read_bytes().startswith(b"\xef\xbb\xbf"))
+
+    def test_sound_effect_acceptance_matrix_uses_locked_parameters(self) -> None:
+        self.assertEqual([(case.case_id, case.seconds) for case in SOUND_EFFECT_CASES], [("A", 5), ("B", 10), ("C", 20), ("D", 30)])
+        gate = sound_effect_workspace_for(SOUND_EFFECT_GATE, steps=10)
+        self.assertEqual(gate["parameters"], {
+            "seconds": 3, "num_inference_steps": 10, "cfg_scale": 4.0,
+            "sigma_shift": 5.0, "seed": 2026,
+        })
+        plan = sound_effect_dry_run_plan("验收项目", "http://127.0.0.1:7862")
+        self.assertTrue(plan["dry_run"])
+        self.assertEqual(plan["rules"]["duration_tolerance_seconds"], .02)
 
 
 class VoiceGeneratorAcceptanceTests(unittest.TestCase):
