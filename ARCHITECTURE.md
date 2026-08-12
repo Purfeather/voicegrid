@@ -13,6 +13,9 @@
 - `desktop/frontend/src/app`：路由和全局启动状态
 - `desktop/frontend/src/features/projects`：项目中心
 - `desktop/frontend/src/features/workbench`：音色、文本、输出和高级参数区
+- `desktop/frontend/src/features/modules`：三模块页签、安装状态与固定目录检测
+- `desktop/frontend/src/features/voice-design`：音色提示词编排、试听、设计历史和共享音色注册
+- `desktop/frontend/src/features/sound-effect`：音效模块静态预览与阶段门控
 - `desktop/frontend/src/components`：通用控件、标题栏、硬件浮层和音频波形
 - `desktop/frontend/src/services`：API、SSE 和最小桌面桥接
 - `desktop/frontend/src/styles`：语义令牌与全局规则
@@ -54,6 +57,12 @@ PyWebView2 桥接只保留窗口控制、启动状态、重试/继续等待、�
 模型首次任务时懒加载。MOSS-TTS 生成模型和 MOSS-Audio-Tokenizer-v2 不同时常驻显存：编码参考音色和解码时让 Tokenizer 进入显存，生成文本音频码时让 4B 模型进入显存。任务执行器固定为单工作线程。
 
 排队任务可立即取消；运行任务在当前文本段结束后检查取消标志。成功时先写工程化输出和 SQLite 历史，再发布完成事件。失败时释放模型与 CUDA 缓存。用户也可在硬件浮层中手动释放模型和显存。
+
+### 可选模型隔离
+
+MOSS-VoiceGenerator 与 MOSS-SoundEffect v2 各自拥有 Python 3.12 环境，主后端不导入其模型依赖。测试版的 `models` 目录连接保持只读，可选模型固定写入测试版独立的 `optional-models`。自动安装先创建临时运行环境和临时模型目录，核对 ModelScope 固定清单、实际文件数量和总大小后再原子替换。音色设计工作进程通过 UTF-8 JSON 行协议通信；切换回语音合成前释放该进程，反向切换前释放 MOSS-TTS 模型。
+
+项目 schema 4 使用 `workspaces.speech`、`workspaces.voice_design` 与 `workspaces.sound_effect` 分别保存草稿。任务与输出带 `module` 和 `kind`，各页签只读取自己的活动记录。音色设计成品位于项目受控目录，显式命名后复制到全局音色库；音效素材将保存在当前项目范围内。
 
 ## 编码与边界
 

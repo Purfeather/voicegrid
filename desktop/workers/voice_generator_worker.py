@@ -1,0 +1,180 @@
+from __future__ import annotations
+
+import argparse
+import gc
+import json
+import os
+import sys
+import traceback
+from pathlib import Path
+
+
+PROTOCOL_PREFIX = "VOICEGRID_EVENT "
+
+
+def emit(event: str, **payload) -> None:
+    message = {"event": event, **payload}
+    sys.stdout.write(PROTOCOL_PREFIX + json.dumps(message, ensure_ascii=False) + "\n")
+    sys.stdout.flush()
+
+
+class VoiceGeneratorWorker:
+    def __init__(self, model_path: Path, codec_path: Path) -> None:
+        self.model_path = model_path
+        self.codec_path = codec_path
+        self.model = None
+        self.processor = None
+        self.torch = None
+        self.torchaudio = None
+        self.device = "cuda"
+        self.dtype_name = "bfloat16"
+        self.attention = "sdpa"
+
+    def load(self) -> None:
+        if self.model is not None:
+            return
+        emit("progress", progress=0.03, message="正在载入音色设计运行组件")
+        os.environ.setdefault("HF_HUB_OFFLINE", "1")
+        os.environ.setdefault("TRANSFORMERS_OFFLINE", "1")
+        os.environ.setdefault("HF_DATASETS_OFFLINE", "1")
+        import torch
+        import torchaudio
+        from transformers import AutoModel, AutoProcessor
+
+        if not torch.cuda.is_available():
+            raise RuntimeError("MOSS-VoiceGenerator 需要可用的 NVIDIA CUDA 显卡。")
+        torch.backends.cuda.enable_cudnn_sdp(False)
+        torch.backends.cuda.enable_flash_sdp(True)
+        torch.backends.cuda.enable_mem_efficient_sdp(True)
+        torch.backends.cuda.enable_math_sdp(True)
+        dtype = torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float16
+        self.dtype_name = "bfloat16" if dtype == torch.bfloat16 else "float16"
+        emit("progress", progress=0.12, message="正在载入 MOSS 音频分词器")
+        processor_kwargs = {
+            "trust_remote_code": True,
+            "normalize_inputs": True,
+            "codec_path": str(self.codec_path),
+            "local_files_only": True,
+        }
+        try:
+            processor = AutoProcessor.from_pretrained(str(self.model_path), **processor_kwargs)
+        except TypeError:
+            processor_kwargs.pop("local_files_only", None)
+            processor = AutoProcessor.from_pretrained(str(self.model_path), **processor_kwargs)
+        processor.audio_tokenizer.eval()
+        processor.audio_tokenizer = processor.audio_tokenizer.to("cpu")
+        emit("progress", progress=0.48, message="正在载入 MOSS-VoiceGenerator")
+        try:
+            model = AutoModel.from_pretrained(
+                str(self.model_path),
+                trust_remote_code=True,
+                local_files_only=True,
+                attn_implementation=self.attention,
+                torch_dtype=dtype,
+            ).to(self.device)
+        except TypeError:
+            model = AutoModel.from_pretrained(
+                str(self.model_path),
+                trust_remote_code=True,
+                attn_implementation=self.attention,
+                torch_dtype=dtype,
+            ).to(self.device)
+        model.eval()
+        self.torch = torch
+        self.torchaudio = torchaudio
+        self.processor = processor
+        self.model = model
+        emit(
+            "loaded",
+            progress=0.72,
+            message="MOSS-VoiceGenerator 已就绪",
+            device=self.device,
+            dtype=self.dtype_name,
+            attention=self.attention,
+        )
+
+    def generate(self, command: dict) -> dict:
+        self.load()
+        assert self.model is not None and self.processor is not None and self.torch is not None and self.torchaudio is not None
+        text = str(command.get("text") or "").strip()
+        instruction = str(command.get("instruction") or "").strip()
+        if not text or not instruction:
+            raise ValueError("试听台词和音色提示词不能为空。")
+        parameters = dict(command.get("parameters") or {})
+        seed = int(parameters.get("seed", 2026))
+        self.torch.manual_seed(seed)
+        self.torch.cuda.manual_seed_all(seed)
+        emit("progress", progress=0.76, message="正在构建音色设计指令")
+        conversations = [[self.processor.build_user_message(text=text, instruction=instruction)]]
+        batch = self.processor(conversations, mode="generation")
+        input_ids = batch["input_ids"].to(self.device)
+        attention_mask = batch["attention_mask"].to(self.device)
+        self.processor.audio_tokenizer.to("cpu")
+        self.model.to(self.device)
+        gc.collect()
+        self.torch.cuda.empty_cache()
+        try:
+            emit("progress", progress=0.80, message="正在生成试听音色")
+            with self.torch.inference_mode():
+                outputs = self.model.generate(
+                    input_ids=input_ids,
+                    attention_mask=attention_mask,
+                    audio_temperature=float(parameters.get("audio_temperature", 1.5)),
+                    audio_top_p=float(parameters.get("audio_top_p", 0.6)),
+                    audio_top_k=int(parameters.get("audio_top_k", 50)),
+                    audio_repetition_penalty=float(parameters.get("audio_repetition_penalty", 1.1)),
+                    max_new_tokens=int(parameters.get("max_new_tokens", 4096)),
+                )
+            outputs_cpu = [(int(start), generation.detach().cpu()) for start, generation in outputs]
+            del outputs, input_ids, attention_mask, batch
+            self.model.to("cpu")
+            gc.collect()
+            self.torch.cuda.empty_cache()
+            self.processor.audio_tokenizer.to(self.device)
+            emit("progress", progress=0.94, message="正在解码试听音色")
+            with self.torch.inference_mode():
+                decoded = self.processor.decode(outputs_cpu)
+            if not decoded or decoded[0] is None or not decoded[0].audio_codes_list:
+                raise RuntimeError("模型没有返回可解码的音频。")
+            audio = decoded[0].audio_codes_list[0]
+            if audio.ndim == 1:
+                audio = audio.unsqueeze(0)
+            output_path = Path(str(command["output_path"]))
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            sample_rate = int(self.processor.model_config.sampling_rate)
+            self.torchaudio.save(str(output_path), audio.detach().cpu(), sample_rate, encoding="PCM_S", bits_per_sample=24)
+            duration = float(audio.shape[-1] / sample_rate)
+            return {"path": str(output_path), "sample_rate": sample_rate, "channels": int(audio.shape[0]), "duration": duration}
+        finally:
+            self.model.to("cpu")
+            self.processor.audio_tokenizer.to("cpu")
+            gc.collect()
+            self.torch.cuda.empty_cache()
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--model", required=True)
+    parser.add_argument("--codec", required=True)
+    args = parser.parse_args()
+    worker = VoiceGeneratorWorker(Path(args.model), Path(args.codec))
+    emit("ready", message="音色设计工作进程已启动")
+    for line in sys.stdin:
+        try:
+            command = json.loads(line)
+            request_id = str(command.get("request_id") or "")
+            action = command.get("action")
+            if action == "shutdown":
+                emit("shutdown", request_id=request_id)
+                return 0
+            if action != "generate":
+                raise ValueError("不支持的工作进程操作。")
+            result = worker.generate(command)
+            emit("result", request_id=request_id, result=result)
+        except Exception as exc:
+            emit("error", request_id=str(locals().get("request_id", "")), message=str(exc), traceback=traceback.format_exc())
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

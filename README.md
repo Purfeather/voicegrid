@@ -16,6 +16,14 @@
 - 兼容：90 字、20 秒
 - 完全离线加载；CUDA 上按设备能力使用 BF16/FP16、SDPA，并让生成模型与 Audio Tokenizer 分阶段进入显存
 
+## 2.0 多模块预览
+
+- 语音合成：保留现有 MOSS-TTS 1.5 4B 完整工作流。
+- 音色设计：MOSS-VoiceGenerator 与 MOSS-Audio-Tokenizer 独立安装；支持八类提示词模块组合、自由描述、最终提示词显式应用、项目历史与“保存为音色”。
+- 音效生成：MOSS-SoundEffect v2.0 页面和可选安装入口已分离；真实推理按阶段验收，当前未安装时仍可完整预览。
+
+可选模块不会在启动或切换页签时下载、导入或占用显存。用户确认后才会从 ModelScope 下载固定清单，并安装到 `optional-models` 与 `runtimes`；这两个目录不进入 Git 或便携包。测试版的 `models` 是指向正式模型库的只读连接，因此可选权重刻意使用独立目录，避免修改正式版。模型运行于独立隐藏进程，三个模块共享同一条串行 GPU 任务队列。
+
 ## 数据位置
 
 - 项目文件：`projects/<project-id>/project.json`
