@@ -14,9 +14,11 @@ from app.model_engine import split_text
 from desktop.backend import output_engineering, repository
 from desktop.backend.database import Database
 from desktop.backend.defaults import PARAMETER_PRESETS
-from desktop.backend.module_service import MODEL_LOCKS, ModuleService, _model_complete
+from desktop.backend.module_service import MODEL_LOCKS, RUNTIME_PYTHON_LOCKS, RUNTIME_VERSION_LOCKS, ModuleService, _model_complete
 from desktop.backend.schemas import ModuleTaskCreate, ProjectPatch, SoundEffectDraft, VoiceDesignDraft, WorkspaceDraft
 from desktop.workers.module_downloader import manifest_digest
+from desktop.workers.runtime_audio_probe import probe_pcm24
+from desktop.workers.audio_io import write_pcm24_wav
 from desktop.backend.task_service import _next_output_index, build_generation_snapshot, estimate_speed_tokens
 
 
@@ -230,6 +232,27 @@ class AudioOutputTests(unittest.TestCase):
 
 
 class ModelContractTests(unittest.TestCase):
+    def test_voice_design_pcm24_writer_and_runtime_probe(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            target = root / "voice.wav"
+            metadata = write_pcm24_wav(target, sine(24000, 1.0), 24000)
+            info = sf.info(target)
+            self.assertEqual(info.subtype, "PCM_24")
+            self.assertEqual(metadata["subtype"], "PCM_24")
+            self.assertEqual(metadata["channels"], 1)
+            probe = probe_pcm24(root / "probe")
+            self.assertEqual(probe["subtype"], "PCM_24")
+
+    def test_voice_design_runtime_is_fully_pinned_to_python_312(self) -> None:
+        self.assertEqual(RUNTIME_PYTHON_LOCKS["voice_design"], (3, 12))
+        expected = {
+            "torch", "torchaudio", "transformers", "modelscope", "modelscope-hub", "accelerate",
+            "safetensors", "numpy", "orjson", "tqdm", "PyYAML", "einops", "scipy", "librosa",
+            "tiktoken", "soundfile", "psutil", "packaging",
+        }
+        self.assertEqual(set(RUNTIME_VERSION_LOCKS["voice_design"]), expected)
+
     def test_module_task_payload_is_discriminated_by_module(self) -> None:
         voice_task = ModuleTaskCreate.model_validate({
             "project_id": "project",

@@ -7,6 +7,7 @@ import shutil
 import subprocess
 import sys
 import threading
+import traceback
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -21,6 +22,7 @@ from .paths import (
     VOICE_GENERATOR_MODEL_DIR,
     VOICE_GENERATOR_RUNTIME_DIR,
 )
+from .diagnostics import append_diagnostic_log
 
 
 MODEL_LOCKS: dict[str, dict[str, Any]] = {
@@ -78,7 +80,7 @@ MODULES: dict[str, dict[str, Any]] = {
 }
 
 RUNTIME_IMPORT_CHECKS = {
-    "voice_design": "import torch, torchaudio, transformers, modelscope_hub, soundfile, librosa, tiktoken",
+    "voice_design": "import torch, torchaudio, transformers, modelscope, modelscope_hub, soundfile, librosa, tiktoken, accelerate, safetensors, orjson, tqdm, yaml, einops, scipy, psutil, packaging",
     "sound_effect": "import torch, torchaudio, torchvision, transformers, modelscope_hub, soundfile, diffusers, audiotools",
 }
 RUNTIME_VERSION_LOCKS = {
@@ -86,8 +88,21 @@ RUNTIME_VERSION_LOCKS = {
         "torch": "2.9.1+cu128",
         "torchaudio": "2.9.1+cu128",
         "transformers": "5.0.0",
+        "modelscope": "1.39.1",
+        "modelscope-hub": "0.2.0",
+        "accelerate": "1.14.0",
         "safetensors": "0.6.2",
         "numpy": "2.1.0",
+        "orjson": "3.11.4",
+        "tqdm": "4.67.1",
+        "PyYAML": "6.0.3",
+        "einops": "0.8.1",
+        "scipy": "1.16.2",
+        "librosa": "0.11.0",
+        "tiktoken": "0.12.0",
+        "soundfile": "0.14.0",
+        "psutil": "7.2.2",
+        "packaging": "26.3",
     },
     "sound_effect": {
         "torch": "2.9.0+cu128",
@@ -100,8 +115,13 @@ RUNTIME_VERSION_LOCKS = {
     },
 }
 RUNTIME_PYTHON_LOCKS = {
+    "voice_design": (3, 12),
     "sound_effect": (3, 12),
 }
+
+
+def _append_module_log(module_id: str, message: str) -> None:
+    append_diagnostic_log(f"module-install-{module_id}", message)
 
 
 def _runtime_python(runtime: Path) -> Path:
@@ -249,14 +269,46 @@ class ModuleService:
                 creationflags=creationflags,
             )
             if result.returncode != 0:
+                _append_module_log(
+                    module_id,
+                    "RUNTIME CHECK FAILED\n" + (result.stdout or "") + (result.stderr or ""),
+                )
                 return False
             probe = json.loads(result.stdout.strip().splitlines()[-1])
             versions = dict(probe.get("packages") or {})
             python_lock = RUNTIME_PYTHON_LOCKS.get(module_id)
             if python_lock and tuple(probe.get("python") or ()) != python_lock:
+                _append_module_log(module_id, f"PYTHON VERSION MISMATCH: expected={python_lock} actual={probe.get('python')}")
                 return False
-            if any(versions.get(name) != version for name, version in RUNTIME_VERSION_LOCKS[module_id].items()):
+            mismatches = {
+                name: {"expected": version, "actual": versions.get(name)}
+                for name, version in RUNTIME_VERSION_LOCKS[module_id].items()
+                if versions.get(name) != version
+            }
+            if mismatches:
+                _append_module_log(module_id, f"PACKAGE VERSION MISMATCH: {json.dumps(mismatches, ensure_ascii=False)}")
                 return False
+            if module_id == "voice_design":
+                audio_probe = subprocess.run(
+                    [str(python), str(ROOT / "desktop" / "workers" / "runtime_audio_probe.py")],
+                    cwd=ROOT,
+                    capture_output=True,
+                    text=True,
+                    encoding="utf-8",
+                    errors="replace",
+                    timeout=20,
+                    creationflags=creationflags,
+                )
+                if audio_probe.returncode != 0:
+                    _append_module_log(
+                        module_id,
+                        "AUDIO PROBE FAILED\n" + (audio_probe.stdout or "") + (audio_probe.stderr or ""),
+                    )
+                    return False
+                audio_result = json.loads(audio_probe.stdout.strip().splitlines()[-1])
+                if audio_result.get("format") != "WAV" or audio_result.get("subtype") != "PCM_24":
+                    _append_module_log(module_id, f"AUDIO PROBE MISMATCH: {json.dumps(audio_result, ensure_ascii=False)}")
+                    return False
             if not marker.is_file():
                 marker.write_text(
                     json.dumps(
@@ -273,6 +325,7 @@ class ModuleService:
                 )
             return True
         except Exception:
+            _append_module_log(module_id, "RUNTIME CHECK EXCEPTION\n" + traceback.format_exc())
             return False
 
     def describe(self, module_id: str, inspect: bool = False) -> dict[str, Any]:
@@ -390,6 +443,7 @@ class ModuleService:
         progress_span: float = 0.0,
     ) -> None:
         self._save_state(module_id, status="installing", phase=phase, message=message, progress=progress, error="")
+        _append_module_log(module_id, f"START {phase}: {subprocess.list2cmdline(command)}")
         creationflags = subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
         process = subprocess.Popen(
             command,
@@ -408,6 +462,7 @@ class ModuleService:
         for line in process.stdout:
             clean = line.strip()
             if clean:
+                _append_module_log(module_id, f"{phase}: {clean}")
                 if clean.startswith("VOICEGRID_INSTALL_PROGRESS "):
                     try:
                         update = json.loads(clean.removeprefix("VOICEGRID_INSTALL_PROGRESS "))
@@ -432,10 +487,12 @@ class ModuleService:
         code = process.wait()
         with self.lock:
             self.install_processes.pop(module_id, None)
+        _append_module_log(module_id, f"END {phase}: exit={code}")
         if code:
             raise RuntimeError("\n".join(tail) or f"安装步骤退出，代码 {code}")
 
     def _install(self, module_id: str) -> None:
+        _append_module_log(module_id, "INSTALL BEGIN")
         try:
             runtime = VOICE_GENERATOR_RUNTIME_DIR if module_id == "voice_design" else SOUND_EFFECT_RUNTIME_DIR
             runtime.parent.mkdir(parents=True, exist_ok=True)
@@ -513,7 +570,9 @@ class ModuleService:
             descriptor = self.detect(module_id)
             if not descriptor["installed"]:
                 raise RuntimeError("下载完成，但模型或运行环境完整性检查未通过。")
+            _append_module_log(module_id, "INSTALL COMPLETE")
         except Exception as exc:
+            _append_module_log(module_id, "INSTALL FAILED\n" + traceback.format_exc())
             self._save_state(module_id, status="failed", phase="failed", message="安装未完成，可稍后继续或修复", progress=0.0, error=str(exc))
 
     def shutdown(self) -> None:

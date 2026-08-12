@@ -11,10 +11,15 @@ from typing import Any, Callable
 
 from app.model_engine import TaskCancelled
 
+from .diagnostics import append_diagnostic_log
 from .paths import ROOT, VOICE_GENERATOR_CODEC_DIR, VOICE_GENERATOR_MODEL_DIR, VOICE_GENERATOR_RUNTIME_DIR
 
 
 PROTOCOL_PREFIX = "VOICEGRID_EVENT "
+
+
+def _append_worker_log(message: str) -> None:
+    append_diagnostic_log("voice-design-worker", message)
 
 
 class WorkerManager:
@@ -35,6 +40,7 @@ class WorkerManager:
     def _reader_loop(self, process: subprocess.Popen[str]) -> None:
         assert process.stdout is not None
         for line in process.stdout:
+            _append_worker_log(line.rstrip("\r\n"))
             if not line.startswith(PROTOCOL_PREFIX):
                 clean = line.strip()
                 if clean:
@@ -82,6 +88,7 @@ class WorkerManager:
             env=env,
             creationflags=creationflags,
         )
+        _append_worker_log(f"WORKER START pid={process.pid} command={subprocess.list2cmdline(command)}")
         self.process = process
         self.active_module = "voice_design"
         self.state = "loading"
@@ -191,6 +198,7 @@ class WorkerManager:
                         stream.close()
                     except Exception:
                         pass
+            _append_worker_log(f"WORKER STOP pid={process.pid} exit={process.returncode}")
         reader = self.reader
         self.reader = None
         if reader is not None and reader.is_alive() and reader is not threading.current_thread():

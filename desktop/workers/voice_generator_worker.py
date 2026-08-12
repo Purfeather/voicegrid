@@ -8,6 +8,11 @@ import sys
 import traceback
 from pathlib import Path
 
+try:
+    from .audio_io import write_pcm24_wav
+except ImportError:  # Direct execution by an isolated optional runtime.
+    from audio_io import write_pcm24_wav
+
 
 PROTOCOL_PREFIX = "VOICEGRID_EVENT "
 
@@ -25,7 +30,6 @@ class VoiceGeneratorWorker:
         self.model = None
         self.processor = None
         self.torch = None
-        self.torchaudio = None
         self.device = "cuda"
         self.dtype_name = "bfloat16"
         self.attention = "sdpa"
@@ -38,7 +42,6 @@ class VoiceGeneratorWorker:
         os.environ.setdefault("TRANSFORMERS_OFFLINE", "1")
         os.environ.setdefault("HF_DATASETS_OFFLINE", "1")
         import torch
-        import torchaudio
         from transformers import AutoModel, AutoProcessor
 
         if not torch.cuda.is_available():
@@ -81,7 +84,6 @@ class VoiceGeneratorWorker:
             ).to(self.device)
         model.eval()
         self.torch = torch
-        self.torchaudio = torchaudio
         self.processor = processor
         self.model = model
         emit(
@@ -95,7 +97,7 @@ class VoiceGeneratorWorker:
 
     def generate(self, command: dict) -> dict:
         self.load()
-        assert self.model is not None and self.processor is not None and self.torch is not None and self.torchaudio is not None
+        assert self.model is not None and self.processor is not None and self.torch is not None
         text = str(command.get("text") or "").strip()
         instruction = str(command.get("instruction") or "").strip()
         if not text or not instruction:
@@ -140,11 +142,8 @@ class VoiceGeneratorWorker:
             if audio.ndim == 1:
                 audio = audio.unsqueeze(0)
             output_path = Path(str(command["output_path"]))
-            output_path.parent.mkdir(parents=True, exist_ok=True)
             sample_rate = int(self.processor.model_config.sampling_rate)
-            self.torchaudio.save(str(output_path), audio.detach().cpu(), sample_rate, encoding="PCM_S", bits_per_sample=24)
-            duration = float(audio.shape[-1] / sample_rate)
-            return {"path": str(output_path), "sample_rate": sample_rate, "channels": int(audio.shape[0]), "duration": duration}
+            return write_pcm24_wav(output_path, audio, sample_rate)
         finally:
             self.model.to("cpu")
             self.processor.audio_tokenizer.to("cpu")
