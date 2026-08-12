@@ -83,7 +83,7 @@ export function ScriptPanel({ workspace, stylesList, languages, onWorkspace, onS
                 value={workspace.target_duration_enabled ? workspace.target_duration_seconds : ""}
                 placeholder="自动"
                 aria-label="目标时长（秒）"
-                onChange={(event) => onWorkspace({ target_duration_seconds: Math.max(1, Math.min(120, Number(event.target.value) || 1)) })}
+                onChange={(event) => onWorkspace({ target_duration_seconds: Math.max(1, Math.min(120, Math.round(Number(event.target.value) || 1))) })}
               />
               <strong>秒</strong>
             </div>
