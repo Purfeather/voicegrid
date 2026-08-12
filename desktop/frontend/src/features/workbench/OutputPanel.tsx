@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { AudioLines, Ban, CheckCircle2, Download, FileAudio2, FolderOpen, History, LoaderCircle, Trash2, WandSparkles, XCircle } from "lucide-react";
+import { AudioLines, Ban, CircleAlert, Download, FileAudio2, FolderOpen, LoaderCircle, Trash2, WandSparkles } from "lucide-react";
 import type { OutputProfile, OutputRecord, TaskRecord, WorkspaceDraft } from "../../types";
 import { api } from "../../services/api";
 import { selectFolder } from "../../services/native";
@@ -20,11 +20,38 @@ interface Props {
   onClearHistory: () => Promise<void>;
 }
 
+type ActivityFilter = "all" | "active" | "completed" | "exception";
+type ActivityItem =
+  | { kind: "task"; id: string; createdAt: string; task: TaskRecord }
+  | { kind: "output"; id: string; createdAt: string; output: OutputRecord };
+
 export function OutputPanel({ workspace, tasks, history, generating, onWorkspace, onGenerate, onCancel, onClearTasks, onClearHistory }: Props) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [filter, setFilter] = useState<ActivityFilter>("all");
   const profile = workspace.output_profile;
   const current = useMemo(() => history.find((item) => item.id === selectedId) || history[0] || null, [history, selectedId]);
   useEffect(() => { if (!selectedId && history[0]) setSelectedId(history[0].id); }, [history, selectedId]);
+
+  const activity = useMemo<ActivityItem[]>(() => {
+    const outputTaskIds = new Set(history.map((record) => record.task_id));
+    const taskItems: ActivityItem[] = tasks
+      .filter((task) => !(task.status === "completed" && outputTaskIds.has(task.id)))
+      .map((task) => ({ kind: "task", id: task.id, createdAt: task.created_at, task }));
+    const outputItems: ActivityItem[] = history.map((output) => ({ kind: "output", id: output.id, createdAt: output.created_at, output }));
+    return [...taskItems, ...outputItems].sort((left, right) => {
+      const leftActive = left.kind === "task" && (left.task.status === "queued" || left.task.status === "running");
+      const rightActive = right.kind === "task" && (right.task.status === "queued" || right.task.status === "running");
+      if (leftActive !== rightActive) return leftActive ? -1 : 1;
+      return right.createdAt.localeCompare(left.createdAt);
+    });
+  }, [history, tasks]);
+
+  const filteredActivity = activity.filter((item) => {
+    if (filter === "all") return true;
+    if (filter === "completed") return item.kind === "output";
+    if (filter === "active") return item.kind === "task" && (item.task.status === "queued" || item.task.status === "running");
+    return item.kind === "task" && ["failed", "cancelled", "interrupted"].includes(item.task.status);
+  });
 
   function updateProfile(patch: Partial<OutputProfile>) {
     onWorkspace({ output_profile: { ...profile, ...patch } });
@@ -36,7 +63,7 @@ export function OutputPanel({ workspace, tasks, history, generating, onWorkspace
   }
 
   return (
-    <div className={styles.columnScroll}>
+    <div className={`${styles.columnScroll} ${styles.outputColumn}`}>
       <Section title="生成与交付" eyebrow="Output engineering" actions={<Badge tone={generating ? "accent" : "neutral"}>{generating ? "生成中" : "准备就绪"}</Badge>}>
         <div className={styles.sectionBody}>
           <Button className={styles.generateButton} variant="primary" icon={<WandSparkles size={17} />} busy={generating} disabled={!workspace.text.trim() || generating} onClick={onGenerate}>{generating ? "正在生成音频" : "开始生成"}</Button>
@@ -64,35 +91,40 @@ export function OutputPanel({ workspace, tasks, history, generating, onWorkspace
               <div><dt>参数预设</dt><dd>{current.generation_snapshot.preset}</dd></div>
               <div><dt>目标时长</dt><dd>{current.generation_snapshot.target_duration_enabled ? `${current.generation_snapshot.target_duration_seconds} 秒 · ${current.generation_snapshot.target_tokens} tokens` : "自动"}</dd></div>
             </dl>
-            <strong>风格 / 情感提示</strong>
-            <p>{current.generation_snapshot.instruction || "未设置"}</p>
-            <strong>生成片段</strong>
-            <ol>{current.generation_snapshot.segments.map((segment) => <li key={segment.index}>{segment.text}</li>)}</ol>
+            <strong>风格 / 情感提示</strong><p>{current.generation_snapshot.instruction || "未设置"}</p>
+            <strong>生成片段</strong><ol>{current.generation_snapshot.segments.map((segment) => <li key={segment.index}>{segment.text}</li>)}</ol>
           </details>}
           <div className={styles.outputActions}><Button icon={<FolderOpen size={15} />} onClick={() => api.openArtifact(current.id)}>打开目录</Button><a className={styles.downloadButton} href={api.artifactUrl(current.id, true)} download><Download size={15} />下载</a></div>
-        </div> : <EmptyState title="尚未生成音频" detail="生成完成后会先保存到历史，再自动出现在这里。" />}
+        </div> : <EmptyState title="尚未生成音频" detail="生成完成后会先保存到活动记录，再自动出现在这里。" />}
       </Section>
 
-      <Section title="任务队列" eyebrow="Queue" actions={tasks.length ? <IconButton label="清空已结束任务" onClick={onClearTasks}><Trash2 size={15} /></IconButton> : undefined}>
-        <div className={styles.taskList}>
-          {tasks.length ? tasks.map((task) => (
-            <article key={task.id}>
-              <header><span>{task.status === "running" ? <LoaderCircle className={styles.spin} size={14} /> : task.status === "completed" ? <CheckCircle2 size={14} /> : task.status === "failed" ? <XCircle size={14} /> : <History size={14} />}<strong>{task.message}</strong></span><Badge tone={task.status === "failed" ? "danger" : task.status === "completed" ? "success" : task.status === "running" ? "accent" : "neutral"}>{task.status}</Badge></header>
-              <Progress value={task.progress} label={task.message} />
-              {task.error && <p>{task.error}</p>}
-              {(task.status === "running" || task.status === "queued") && <Button variant="ghost" icon={<Ban size={14} />} onClick={() => onCancel(task.id)}>安全停止</Button>}
-            </article>
-          )) : <EmptyState title="队列为空" detail="新的生成任务会在这里显示实时进度。" />}
+      <Section
+        title="任务与输出"
+        eyebrow="Activity"
+        className={styles.activitySection}
+        actions={<div className={styles.activityActions}>
+          {tasks.length > 0 && <IconButton label="清理已结束任务" onClick={onClearTasks}><Trash2 size={14} /></IconButton>}
+          {history.length > 0 && <IconButton label="清空输出历史" onClick={onClearHistory}><FileAudio2 size={14} /></IconButton>}
+        </div>}
+      >
+        <div className={styles.activityFilters} role="group" aria-label="活动记录筛选">
+          {([['all', '全部'], ['active', '进行中'], ['completed', '已完成'], ['exception', '异常']] as Array<[ActivityFilter, string]>).map(([value, label]) => <button key={value} className={filter === value ? styles.activityFilterActive : ""} onClick={() => setFilter(value)}>{label}</button>)}
         </div>
-      </Section>
-
-      <Section title="输出历史" eyebrow="Persistent history" actions={history.length ? <IconButton label="清空输出历史" onClick={onClearHistory}><Trash2 size={15} /></IconButton> : undefined}>
-        <div className={styles.historyList}>
-          {history.length ? history.map((record) => (
-            <button key={record.id} className={current?.id === record.id ? styles.historyActive : ""} onClick={() => setSelectedId(record.id)}>
-              <span className={styles.historyAsset}><FileAudio2 size={14} /></span><span><strong>{record.filename}</strong><small>{new Date(record.created_at).toLocaleString("zh-CN")} · {formatDuration(record.duration)}</small></span><em>{record.format}</em>
+        <div className={styles.activityList}>
+          {filteredActivity.length ? filteredActivity.map((item) => item.kind === "output" ? (
+            <button key={`output-${item.id}`} className={`${styles.activityOutput} ${current?.id === item.output.id ? styles.historyActive : ""}`} onClick={() => setSelectedId(item.output.id)}>
+              <span className={styles.historyAsset}><FileAudio2 size={14} /></span>
+              <span><strong>{item.output.filename}</strong><small>{new Date(item.output.created_at).toLocaleString("zh-CN")} · {formatDuration(item.output.duration)}</small></span>
+              <Badge tone="success">已完成</Badge>
             </button>
-          )) : <EmptyState title="历史记录为空" detail="输出记录保存在项目数据库中，重新打开仍可找回。" />}
+          ) : (
+            <article key={`task-${item.id}`} className={styles.activityTask}>
+              <header><span>{item.task.status === "running" ? <LoaderCircle className={styles.spin} size={14} /> : <CircleAlert size={14} />}<strong>{item.task.message}</strong></span><Badge tone={item.task.status === "failed" ? "danger" : item.task.status === "running" ? "accent" : "neutral"}>{item.task.status}</Badge></header>
+              <Progress value={item.task.progress} label={item.task.message} />
+              {item.task.error && <p>{item.task.error}</p>}
+              {(item.task.status === "running" || item.task.status === "queued") && <Button variant="ghost" icon={<Ban size={14} />} onClick={() => onCancel(item.task.id)}>安全停止</Button>}
+            </article>
+          )) : <EmptyState title="没有匹配的活动" detail="生成任务和已保存的输出会统一显示在这里。" />}
         </div>
       </Section>
     </div>

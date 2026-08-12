@@ -411,6 +411,7 @@ class NativeHost:
         self.exiting = False
         self.shutdown_started = False
         self.maximized = False
+        self.restore_window_rect: tuple[int, int, int, int] | None = None
         self.main_ready = False
         self.native_splash: NativeSplash | None = None
         self.api_ready = threading.Event()
@@ -557,16 +558,75 @@ class NativeHost:
                 if self.window is None:
                     return "startup-window-managed"
                 if self.maximized:
-                    self.window.restore()
+                    self._restore_from_work_area()
                     self.maximized = False
                     return "restored"
-                self.window.maximize()
+                self._maximize_to_work_area()
                 self.maximized = True
                 return "maximized"
             if action == "exit":
                 threading.Thread(target=self.shutdown, name="app-shutdown", daemon=True).start()
                 return "exiting"
         raise ValueError("不支持的窗口操作。")
+
+    def _maximize_to_work_area(self) -> None:
+        if os.name != "nt":
+            self.window.maximize()
+            return
+        hwnd = self._current_window_handle()
+        if hwnd is None:
+            raise RuntimeError("无法读取主窗口位置。")
+        user32 = ctypes.WinDLL("user32", use_last_error=True)
+
+        class Rect(ctypes.Structure):
+            _fields_ = [("left", ctypes.c_long), ("top", ctypes.c_long), ("right", ctypes.c_long), ("bottom", ctypes.c_long)]
+
+        class MonitorInfo(ctypes.Structure):
+            _fields_ = [("cbSize", ctypes.c_ulong), ("rcMonitor", Rect), ("rcWork", Rect), ("dwFlags", ctypes.c_ulong)]
+
+        user32.GetWindowRect.argtypes = (ctypes.c_void_p, ctypes.POINTER(Rect))
+        user32.GetWindowRect.restype = ctypes.c_bool
+        user32.MonitorFromWindow.argtypes = (ctypes.c_void_p, ctypes.c_ulong)
+        user32.MonitorFromWindow.restype = ctypes.c_void_p
+        user32.GetMonitorInfoW.argtypes = (ctypes.c_void_p, ctypes.POINTER(MonitorInfo))
+        user32.GetMonitorInfoW.restype = ctypes.c_bool
+        user32.SetWindowPos.argtypes = (
+            ctypes.c_void_p, ctypes.c_void_p, ctypes.c_int, ctypes.c_int,
+            ctypes.c_int, ctypes.c_int, ctypes.c_uint,
+        )
+        user32.SetWindowPos.restype = ctypes.c_bool
+        current = Rect()
+        if not user32.GetWindowRect(ctypes.c_void_p(hwnd), ctypes.byref(current)):
+            raise ctypes.WinError(ctypes.get_last_error())
+        self.restore_window_rect = (current.left, current.top, current.right - current.left, current.bottom - current.top)
+        monitor = user32.MonitorFromWindow(ctypes.c_void_p(hwnd), 2)
+        info = MonitorInfo(cbSize=ctypes.sizeof(MonitorInfo))
+        if not monitor or not user32.GetMonitorInfoW(ctypes.c_void_p(monitor), ctypes.byref(info)):
+            raise ctypes.WinError(ctypes.get_last_error())
+        work = info.rcWork
+        user32.SetWindowPos(
+            ctypes.c_void_p(hwnd), None, work.left, work.top,
+            work.right - work.left, work.bottom - work.top,
+            0x0004 | 0x0010,
+        )
+
+    def _restore_from_work_area(self) -> None:
+        if os.name != "nt" or self.restore_window_rect is None:
+            self.window.restore()
+            return
+        hwnd = self._current_window_handle()
+        if hwnd is None:
+            self.window.restore()
+            return
+        x, y, width, height = self.restore_window_rect
+        user32 = ctypes.WinDLL("user32", use_last_error=True)
+        user32.SetWindowPos.argtypes = (
+            ctypes.c_void_p, ctypes.c_void_p, ctypes.c_int, ctypes.c_int,
+            ctypes.c_int, ctypes.c_int, ctypes.c_uint,
+        )
+        user32.SetWindowPos.restype = ctypes.c_bool
+        user32.SetWindowPos(ctypes.c_void_p(hwnd), None, x, y, width, height, 0x0004 | 0x0010)
+        self.restore_window_rect = None
 
     def on_closing(self, *_: Any) -> bool:
         if self.exiting:

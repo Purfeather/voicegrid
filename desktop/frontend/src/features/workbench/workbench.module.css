@@ -1,6 +1,6 @@
 .workbench { height: calc(100% - var(--titlebar-height)); min-width: 0; display: grid; grid-template-rows: minmax(0, 1fr) auto; overflow: hidden; background: var(--surface-canvas); }
 .workbenchMain { min-width: 0; min-height: 0; display: grid; grid-template-columns: minmax(260px, 320px) minmax(380px, 1fr) minmax(300px, 360px); gap: 8px; padding: 8px; overflow: hidden; }
-.columnScroll { min-width: 0; min-height: 0; display: grid; align-content: start; gap: 8px; overflow-x: hidden; overflow-y: auto; padding-inline-end: 1px; }
+.columnScroll { min-width: 0; min-height: 0; display: grid; align-content: start; gap: 8px; overflow-x: hidden; overflow-y: scroll; scrollbar-gutter: stable; padding-inline-end: 2px; }
 .sectionBody { display: grid; gap: 12px; padding: 12px; }
 
 .uploadZone { min-height: 98px; display: grid; place-items: center; align-content: center; gap: 4px; border: 1px dashed var(--border-strong); border-radius: var(--radius-md); background: var(--surface-sunken); color: var(--text-secondary); text-align: center; }
@@ -36,7 +36,7 @@
 .voiceRow > div { display: flex; }
 .voiceRow > div button { width: 30px; height: 30px; }
 
-.scriptColumn { min-width: 0; min-height: 0; display: grid; grid-template-rows: auto minmax(260px, 1fr) minmax(150px, .62fr); gap: 8px; overflow: hidden; }
+.scriptColumn { min-width: 0; min-height: 0; display: grid; grid-template-rows: auto minmax(320px, 1fr) minmax(180px, .62fr); gap: 8px; overflow-x: hidden; overflow-y: scroll; scrollbar-gutter: stable; padding-inline-end: 2px; }
 .directionSection, .editorSection, .segmentSection { min-height: 0; }
 .directionGrid { display: grid; grid-template-columns: minmax(110px, .65fr) minmax(180px, 1.2fr) minmax(160px, .8fr); gap: 8px; padding: 10px 12px 0; }
 .rangeWithValue { min-width: 0; height: 36px; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 8px; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); padding: 0 9px; background: var(--surface-sunken); }
@@ -95,6 +95,26 @@
 .downloadButton { min-height: 36px; display: inline-flex; align-items: center; justify-content: center; gap: 7px; border-radius: var(--radius-sm); background: var(--accent-gradient); color: var(--on-accent); font-weight: 700; text-decoration: none; }
 :root[data-theme="light"] .downloadButton { color: var(--on-accent); }
 
+.outputColumn { grid-template-rows: auto auto minmax(260px, 1fr); align-content: stretch; }
+.activitySection { min-height: 260px; display: grid; grid-template-rows: auto auto minmax(0, 1fr); overflow: hidden; }
+.activityActions { display: flex; gap: 2px; }
+.activityFilters { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 2px; border-bottom: 1px solid var(--border-subtle); padding: 6px 8px; }
+.activityFilters button { min-width: 0; height: 28px; border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--text-muted); font-size: 9px; font-weight: 700; }
+.activityFilters button:hover { background: var(--surface-hover); color: var(--text-primary); }
+.activityFilters .activityFilterActive { background: var(--accent-soft); color: var(--accent); }
+.activityList { min-height: 0; overflow-y: scroll; scrollbar-gutter: stable; display: grid; align-content: start; }
+.activityTask { display: grid; gap: 7px; padding: 10px 12px; border-bottom: 1px solid var(--border-subtle); }
+.activityTask header { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+.activityTask header > span { min-width: 0; display: flex; align-items: center; gap: 6px; }
+.activityTask header strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 10px; }
+.activityTask p { margin: 0; color: var(--danger); font-size: 9px; }
+.activityTask button { justify-self: end; min-height: 28px; padding-block: 3px; font-size: 10px; }
+.activityOutput { min-width: 0; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 8px; border: 0; border-bottom: 1px solid var(--border-subtle); padding: 9px 10px; background: transparent; color: inherit; text-align: start; }
+.activityOutput:hover { background: var(--surface-hover); }
+.activityOutput > span:nth-child(2) { min-width: 0; display: grid; }
+.activityOutput strong, .activityOutput small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.activityOutput strong { font-size: 10px; }
+.activityOutput small { color: var(--text-muted); font-size: 9px; }
 .taskList, .historyList { display: grid; }
 .taskList article { display: grid; gap: 7px; padding: 10px 12px; border-bottom: 1px solid var(--border-subtle); }
 .taskList article:last-child { border-bottom: 0; }
