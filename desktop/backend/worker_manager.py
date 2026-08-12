@@ -36,6 +36,10 @@ class WorkerManager:
         self.dtype = ""
         self.sampling_dtype = ""
         self.attention = ""
+        self.compute_capability = ""
+        self.precision = ""
+        self.projection_dtype = ""
+        self.precision_extra_mib = 0.0
         self.diagnostic_tail: list[str] = []
 
     def _reader_loop(self, process: subprocess.Popen[str]) -> None:
@@ -150,6 +154,10 @@ class WorkerManager:
                     self.dtype = str(message.get("dtype") or self.dtype)
                     self.sampling_dtype = str(message.get("sampling_dtype") or self.sampling_dtype)
                     self.attention = str(message.get("attention") or self.attention)
+                    self.compute_capability = str(message.get("compute_capability") or self.compute_capability)
+                    self.precision = str(message.get("precision") or self.precision)
+                    self.projection_dtype = str(message.get("projection_dtype") or self.projection_dtype)
+                    self.precision_extra_mib = float(message.get("precision_extra_mib") or self.precision_extra_mib)
                     self.message = str(message.get("message") or self.message)
                     progress(float(message.get("progress", .5)), self.message)
                     continue
@@ -174,6 +182,10 @@ class WorkerManager:
             "dtype": self.dtype,
             "sampling_dtype": self.sampling_dtype,
             "attention": self.attention,
+            "compute_capability": self.compute_capability,
+            "precision": self.precision,
+            "projection_dtype": self.projection_dtype,
+            "precision_extra_mib": self.precision_extra_mib,
         }
 
     def release(self) -> None:
@@ -212,6 +224,10 @@ class WorkerManager:
         self.dtype = ""
         self.sampling_dtype = ""
         self.attention = ""
+        self.compute_capability = ""
+        self.precision = ""
+        self.projection_dtype = ""
+        self.precision_extra_mib = 0.0
 
 
 WORKERS = WorkerManager()

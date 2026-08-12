@@ -6,13 +6,16 @@ import json
 import os
 import sys
 import traceback
+from dataclasses import asdict
 from pathlib import Path
 
 try:
     from .audio_io import write_pcm24_wav
+    from .cuda_policy import configure_sdpa, voice_generator_precision_policy
     from .sampling_precision import install_fp32_sampling
 except ImportError:  # Direct execution by an isolated optional runtime.
     from audio_io import write_pcm24_wav
+    from cuda_policy import configure_sdpa, voice_generator_precision_policy
     from sampling_precision import install_fp32_sampling
 
 
@@ -38,9 +41,13 @@ class VoiceGeneratorWorker:
         self.processor = None
         self.torch = None
         self.device = "cuda"
-        self.dtype_name = "bfloat16"
-        self.sampling_dtype_name = "native"
+        self.dtype_name = "float32"
+        self.sampling_dtype_name = "float32"
         self.attention = "sdpa"
+        self.attention_backend = "pending"
+        self.compute_capability = ""
+        self.precision_label = "pending"
+        self.precision_report: dict = {}
 
     def load(self) -> None:
         if self.model is not None:
@@ -54,17 +61,23 @@ class VoiceGeneratorWorker:
 
         if not torch.cuda.is_available():
             raise RuntimeError("MOSS-VoiceGenerator 需要可用的 NVIDIA CUDA 显卡。")
-        torch.backends.cuda.enable_cudnn_sdp(False)
-        torch.backends.cuda.enable_flash_sdp(True)
-        torch.backends.cuda.enable_mem_efficient_sdp(True)
-        torch.backends.cuda.enable_math_sdp(True)
         capability = tuple(int(value) for value in torch.cuda.get_device_capability())
+        self.compute_capability = ".".join(str(value) for value in capability)
+        attention_policy = configure_sdpa(torch, capability)
+        self.attention_backend = attention_policy.label
         try:
             reported_bf16 = bool(torch.cuda.is_bf16_supported(including_emulation=False))
         except TypeError:
             reported_bf16 = bool(torch.cuda.is_bf16_supported())
-        dtype = torch.bfloat16 if native_bf16_available(capability, reported_bf16) else torch.float16
-        self.dtype_name = "bfloat16" if dtype == torch.bfloat16 else "float16"
+        precision_policy = voice_generator_precision_policy(
+            capability,
+            native_bf16_available(capability, reported_bf16),
+        )
+        dtype = getattr(torch, precision_policy.model_dtype)
+        self.dtype_name = precision_policy.model_dtype
+        self.sampling_dtype_name = precision_policy.sampling_dtype
+        self.precision_label = precision_policy.runtime_label
+        self.precision_report = asdict(precision_policy)
         emit("progress", progress=0.12, message="正在载入 MOSS 音频分词器")
         processor_kwargs = {
             "trust_remote_code": True,
@@ -96,12 +109,18 @@ class VoiceGeneratorWorker:
                 torch_dtype=dtype,
             ).to(self.device)
         model.eval()
-        if dtype == torch.float16:
-            if not install_fp32_sampling(model):
-                raise RuntimeError("无法安装 FP16 稳定采样适配层。")
-            self.sampling_dtype_name = "float32"
-        else:
-            self.sampling_dtype_name = self.dtype_name
+        if not install_fp32_sampling(model):
+            raise RuntimeError("无法安装稳定采样适配层。")
+        floating_parameter_count = sum(
+            int(parameter.numel())
+            for parameter in model.parameters()
+            if parameter.is_floating_point()
+        )
+        precision_extra_bytes = floating_parameter_count * 2 if dtype == torch.float32 else 0
+        self.precision_report.update({
+            "floating_parameter_count": floating_parameter_count,
+            "estimated_extra_parameter_bytes": precision_extra_bytes,
+        })
         self.torch = torch
         self.processor = processor
         self.model = model
@@ -112,7 +131,11 @@ class VoiceGeneratorWorker:
             device=self.device,
             dtype=self.dtype_name,
             sampling_dtype=self.sampling_dtype_name,
-            attention=self.attention,
+            attention=self.attention_backend,
+            compute_capability=self.compute_capability,
+            precision=self.precision_label,
+            projection_dtype=precision_policy.projection_dtype,
+            precision_extra_mib=round(precision_extra_bytes / 1024 / 1024, 1),
         )
 
     def generate(self, command: dict) -> dict:
@@ -126,6 +149,7 @@ class VoiceGeneratorWorker:
         seed = int(parameters.get("seed", 2026))
         self.torch.manual_seed(seed)
         self.torch.cuda.manual_seed_all(seed)
+        self.torch.cuda.reset_peak_memory_stats()
         emit("progress", progress=0.76, message="正在构建音色设计指令")
         conversations = [[self.processor.build_user_message(text=text, instruction=instruction)]]
         batch = self.processor(conversations, mode="generation")
@@ -163,7 +187,14 @@ class VoiceGeneratorWorker:
                 audio = audio.unsqueeze(0)
             output_path = Path(str(command["output_path"]))
             sample_rate = int(self.processor.model_config.sampling_rate)
-            return write_pcm24_wav(output_path, audio, sample_rate)
+            result = write_pcm24_wav(output_path, audio, sample_rate)
+            result.update({
+                "runtime_precision": self.precision_label,
+                "precision_report": self.precision_report,
+                "cuda_peak_allocated_mib": round(self.torch.cuda.max_memory_allocated() / 1024 / 1024, 1),
+                "cuda_peak_reserved_mib": round(self.torch.cuda.max_memory_reserved() / 1024 / 1024, 1),
+            })
+            return result
         finally:
             self.model.to("cpu")
             self.processor.audio_tokenizer.to("cpu")

@@ -292,6 +292,10 @@ class TaskService:
                 "voice": "设计音色",
                 "text": workspace["text"],
                 "instruction": workspace["instruction"],
+                "runtime_precision": generated.get("runtime_precision", ""),
+                "precision_report": generated.get("precision_report", {}),
+                "cuda_peak_allocated_mib": generated.get("cuda_peak_allocated_mib"),
+                "cuda_peak_reserved_mib": generated.get("cuda_peak_reserved_mib"),
                 "generation_snapshot": generation_snapshot,
             }
             _write_sidecar(output_path, metadata)

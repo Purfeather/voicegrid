@@ -19,7 +19,8 @@ from desktop.backend.schemas import ModuleTaskCreate, ProjectPatch, SoundEffectD
 from desktop.workers.module_downloader import manifest_digest, verify_install_manifest
 from desktop.workers.runtime_audio_probe import probe_pcm24
 from desktop.workers.audio_io import write_pcm24_wav
-from desktop.workers.sampling_precision import promote_sampling_logits_to_float32
+from desktop.workers.cuda_policy import sdpa_policy, voice_generator_precision_policy
+from desktop.workers.sampling_precision import promote_sampling_logits_to_float32, validate_sampleable_logits
 from desktop.workers.voice_generator_worker import native_bf16_available
 from desktop.backend.task_service import _next_output_index, build_generation_snapshot, estimate_speed_tokens
 
@@ -316,6 +317,31 @@ class ModelContractTests(unittest.TestCase):
         self.assertFalse(native_bf16_available((8, 0), False))
         self.assertTrue(native_bf16_available((8, 0), True))
 
+    def test_turing_uses_math_sdpa_without_disabling_sdpa(self) -> None:
+        turing = sdpa_policy((7, 5))
+        self.assertFalse(turing.flash)
+        self.assertFalse(turing.memory_efficient)
+        self.assertTrue(turing.math)
+        self.assertEqual(turing.label, "sdpa-math")
+        ampere = sdpa_policy((8, 0))
+        self.assertTrue(ampere.flash)
+        self.assertTrue(ampere.memory_efficient)
+        self.assertTrue(ampere.math)
+
+    def test_voice_generator_precision_policy_uses_fp32_on_turing(self) -> None:
+        turing = voice_generator_precision_policy((7, 5), native_bf16=False)
+        self.assertEqual(turing.model_dtype, "float32")
+        self.assertEqual(turing.projection_dtype, "float32")
+        self.assertEqual(turing.sampling_dtype, "float32")
+        self.assertEqual(turing.attention_backend, "sdpa-math")
+        self.assertIn("float32-model", turing.runtime_label)
+
+    def test_voice_generator_precision_policy_uses_native_bf16_on_ampere(self) -> None:
+        ampere = voice_generator_precision_policy((8, 0), native_bf16=True)
+        self.assertEqual(ampere.model_dtype, "bfloat16")
+        self.assertEqual(ampere.sampling_dtype, "float32")
+        self.assertEqual(ampere.attention_backend, "sdpa")
+
     def test_fp32_sampling_adapter_reuses_official_sampler(self) -> None:
         calls: list[tuple[object, object]] = []
 
@@ -335,6 +361,13 @@ class ModelContractTests(unittest.TestCase):
         self.assertEqual(calls[0][0].name, "float32")
         self.assertEqual(calls[0][1], 50)
         self.assertTrue(getattr(adapter, "_voicegrid_fp32_sampling"))
+
+    def test_sampling_validation_allows_empty_batch_with_vocabulary(self) -> None:
+        import torch
+
+        validate_sampleable_logits(torch.empty((0, 1024), dtype=torch.float32))
+        with self.assertRaisesRegex(RuntimeError, "空的采样分布"):
+            validate_sampleable_logits(torch.empty((1, 0), dtype=torch.float32))
 
     def test_model_lock_contracts_are_stable(self) -> None:
         self.assertEqual(MODEL_LOCKS["openmoss/MOSS-VoiceGenerator"]["file_count"], 17)
