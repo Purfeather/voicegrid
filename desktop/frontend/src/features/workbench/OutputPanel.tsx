@@ -1,13 +1,13 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { AudioLines, Ban, BrushCleaning, CircleAlert, Download, FileAudio2, FolderOpen, LoaderCircle, RotateCcw, Settings2, Trash2, WandSparkles, X } from "lucide-react";
+import { AudioLines, Ban, CircleAlert, Download, FileAudio2, FolderOpen, LoaderCircle, RotateCcw, Settings2, Trash2, WandSparkles, X } from "lucide-react";
 import type { GenerationSnapshot, OutputProfile, OutputRecord, TaskRecord, WorkspaceDraft } from "../../types";
 import { api } from "../../services/api";
 import { selectFolder } from "../../services/native";
 import { Badge, Button, EmptyState, Field, IconButton, Progress, Section, Select, TextInput } from "../../components/UI";
 import { formatDuration } from "../../utils/text";
 import styles from "./workbench.module.css";
-import { ModuleActivityTimeline, ModuleCurrentOutput, ModuleGenerateCard } from "../modules/ModuleWorkbenchShell";
+import { ModuleActivityActions, ModuleActivityTimeline, ModuleCurrentOutput, ModuleGenerateCard } from "../modules/ModuleWorkbenchShell";
 
 interface Props {
   projectId: string;
@@ -150,10 +150,7 @@ export function OutputPanel({ workspace, tasks, history, generating, onWorkspace
 
       <ModuleActivityTimeline
         className={styles.activitySection}
-        actions={<div className={styles.activityActions}>
-          <IconButton label="清除全部记录" disabled={!tasks.length && !history.length} onClick={onClearActivity}><BrushCleaning size={14} /></IconButton>
-          <IconButton label="打开输出文件夹" disabled={!profile.output_directory} onClick={onOpenOutputFolder}><FolderOpen size={14} /></IconButton>
-        </div>}
+        actions={<ModuleActivityActions onClear={onClearActivity} onOpenFolder={onOpenOutputFolder} clearDisabled={!tasks.length && !history.length} folderDisabled={!profile.output_directory} />}
       >
         <div className={styles.activityFilters} role="group" aria-label="活动记录筛选">
           {([['all', '全部'], ['active', '进行中'], ['completed', '已完成'], ['exception', '异常']] as Array<[ActivityFilter, string]>).map(([value, label]) => <button key={value} className={filter === value ? styles.activityFilterActive : ""} onClick={() => setFilter(value)}>{label}</button>)}

@@ -8,7 +8,7 @@ import { Badge, Button, EmptyState, Field, Section, TextArea, TextInput } from "
 import { ModuleInstallPanel } from "../modules/ModuleInstallPanel";
 import { ModuleTabs } from "../modules/ModuleTabs";
 import { OptionalModuleColumn, OptionalModuleWorkbench } from "../modules/OptionalModuleWorkbench";
-import { AssetLibrary, ModuleActivityTimeline, ModuleCurrentOutput, ModuleGenerateCard, ModuleParameterRail } from "../modules/ModuleWorkbenchShell";
+import { AssetLibrary, ModuleActivityActions, ModuleActivityTimeline, ModuleCurrentOutput, ModuleGenerateCard, ModuleParameterRail } from "../modules/ModuleWorkbenchShell";
 import styles from "./soundEffect.module.css";
 
 interface Props {
@@ -80,7 +80,7 @@ export function SoundEffectWorkbench(props: Props) {
         </Section>
       </OptionalModuleColumn>
 
-      <OptionalModuleColumn label="音效生成与项目素材">
+      <OptionalModuleColumn label="音效生成与项目素材" output>
         <ModuleGenerateCard actions={<Badge tone="neutral">预览</Badge>}>
           <div className={styles.generateBody}>
             <Button className={styles.generateButton} variant="primary" icon={<Sparkles size={17} />} disabled>生成音效</Button>
@@ -93,7 +93,7 @@ export function SoundEffectWorkbench(props: Props) {
           <div className={styles.fakeWave}>{Array.from({ length: 72 }, (_, index) => <i key={index} style={{ height: `${12 + ((index * 17) % 48)}%` }} />)}</div>
           <div className={styles.lockedActions}><Button variant="secondary" icon={<FolderOpen size={14} />} disabled>打开目录</Button><Button variant="primary" icon={<Download size={14} />} disabled>下载</Button></div>
         </ModuleCurrentOutput>
-        <ModuleActivityTimeline><EmptyState title="暂无任务与输出" detail="推理接入后，任务状态和生成结果会统一保存在这里。" /></ModuleActivityTimeline>
+        <ModuleActivityTimeline actions={<ModuleActivityActions clearDisabled folderDisabled />}><EmptyState title="暂无任务与输出" detail="推理接入后，任务状态和生成结果会统一保存在这里。" /></ModuleActivityTimeline>
       </OptionalModuleColumn>
     </OptionalModuleWorkbench>
   </>;

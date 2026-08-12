@@ -1,13 +1,14 @@
 import type { ReactNode } from "react";
-import { Section } from "../../components/UI";
+import { BrushCleaning, ChevronDown, ChevronUp, FolderOpen, SlidersHorizontal } from "lucide-react";
+import { IconButton, Section } from "../../components/UI";
 import styles from "./moduleWorkbenchShell.module.css";
 
 export function ModuleWorkbenchShell({ children, parameterRail, label }: { children: ReactNode; parameterRail?: ReactNode; label: string }) {
   return <main className={styles.workspace} aria-label={label}><div className={styles.columns}>{children}</div>{parameterRail}</main>;
 }
 
-export function ModuleWorkbenchColumn({ children, label }: { children: ReactNode; label: string }) {
-  return <div className={styles.column} aria-label={label}>{children}</div>;
+export function ModuleWorkbenchColumn({ children, label, output = false }: { children: ReactNode; label: string; output?: boolean }) {
+  return <div className={`${styles.column} ${output ? styles.outputColumn : ""}`} aria-label={label}>{children}</div>;
 }
 
 export function ModulePreviewSurface({ children, locked }: { children: ReactNode; locked: boolean }) {
@@ -26,6 +27,13 @@ export function ModuleActivityTimeline({ children, actions, className = "" }: { 
   return <Section title="任务与输出" eyebrow="Activity" actions={actions} className={className}>{children}</Section>;
 }
 
+export function ModuleActivityActions({ onClear, onOpenFolder, clearDisabled = false, folderDisabled = false }: { onClear?: () => void | Promise<void>; onOpenFolder?: () => void | Promise<void>; clearDisabled?: boolean; folderDisabled?: boolean }) {
+  return <div className={styles.activityActions}>
+    <IconButton label="清除全部记录" disabled={clearDisabled || !onClear} onClick={() => onClear?.()}><BrushCleaning size={14} /></IconButton>
+    <IconButton label="打开输出文件夹" disabled={folderDisabled || !onOpenFolder} onClick={() => onOpenFolder?.()}><FolderOpen size={14} /></IconButton>
+  </div>;
+}
+
 export function AssetLibrary({ children, count, title = "资源库", eyebrow = "Asset library" }: { children: ReactNode; count?: ReactNode; title?: string; eyebrow?: string }) {
   return <Section title={title} eyebrow={eyebrow} actions={count}>{children}</Section>;
 }
@@ -33,7 +41,7 @@ export function AssetLibrary({ children, count, title = "资源库", eyebrow = "
 export function ModuleParameterRail({ open, onOpen, title, summary, actions, children, locked = false }: { open: boolean; onOpen: (open: boolean) => void; title: string; summary: string; actions?: ReactNode; children: ReactNode; locked?: boolean }) {
   return <section className={`${styles.parameterRail} ${open ? styles.parameterOpen : ""}`}>
     <button className={styles.parameterSummary} disabled={locked} onClick={() => onOpen(!open)} aria-expanded={open}>
-      <span className={styles.railIcon}>⌘</span><span><strong>{title}</strong><small>{summary}</small></span>{actions}<span>{open ? "收起⌄" : "展开⌃"}</span>
+      <span className={styles.railIcon}><SlidersHorizontal size={17} /></span><span><strong>{title}</strong><small>{summary}</small></span>{actions}<span>{open ? <>收起<ChevronDown size={15} /></> : <>展开<ChevronUp size={15} /></>}</span>
     </button>
     {open && <div className={styles.parameterBody}>{children}</div>}
   </section>;
