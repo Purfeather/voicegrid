@@ -16,7 +16,7 @@ from desktop.backend.database import Database
 from desktop.backend.defaults import PARAMETER_PRESETS
 from desktop.backend.module_service import MODEL_LOCKS, RUNTIME_PYTHON_LOCKS, RUNTIME_VERSION_LOCKS, ModuleService, _model_complete
 from desktop.backend.schemas import ModuleTaskCreate, ProjectPatch, SoundEffectDraft, VoiceDesignDraft, WorkspaceDraft
-from desktop.workers.module_downloader import manifest_digest
+from desktop.workers.module_downloader import manifest_digest, verify_install_manifest
 from desktop.workers.runtime_audio_probe import probe_pcm24
 from desktop.workers.audio_io import write_pcm24_wav
 from desktop.backend.task_service import _next_output_index, build_generation_snapshot, estimate_speed_tokens
@@ -325,6 +325,35 @@ class ModelContractTests(unittest.TestCase):
 
         entries = [Entry("b.bin", 2, "bb"), Entry("a.bin", 1, "aa")]
         self.assertEqual(manifest_digest(entries), manifest_digest(reversed(entries)))
+
+    def test_locked_manifest_verifies_hidden_repository_files(self) -> None:
+        import hashlib
+
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            payload = b"*.safetensors filter=lfs"
+            hidden = root / ".gitattributes"
+            hidden.write_bytes(payload)
+            manifest = [{
+                "path": ".gitattributes",
+                "size": len(payload),
+                "sha256": hashlib.sha256(payload).hexdigest(),
+            }]
+            verification = verify_install_manifest(root, manifest)
+            self.assertTrue(verification.valid)
+            self.assertEqual(verification.checked_count, 1)
+
+    def test_locked_manifest_rejects_size_or_hash_mismatch(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / "config.json").write_bytes(b"wrong")
+            verification = verify_install_manifest(root, [{
+                "path": "config.json",
+                "size": 5,
+                "sha256": "0" * 64,
+            }])
+            self.assertFalse(verification.valid)
+            self.assertEqual(len(verification.mismatches), 1)
 
     def test_incomplete_model_install_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

@@ -6,6 +6,7 @@ import json
 import os
 import shutil
 import threading
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
@@ -33,6 +34,67 @@ def install_manifest(files) -> list[dict[str, object]]:
             continue
         rows.append({"path": str(entry.path), "size": int(entry.size or 0), "sha256": str(entry.sha256 or "")})
     return sorted(rows, key=lambda item: str(item["path"]))
+
+
+@dataclass(frozen=True)
+class ManifestVerification:
+    checked_count: int
+    mismatches: tuple[str, ...]
+    missing_paths: tuple[str, ...]
+    unverified_paths: tuple[str, ...]
+
+    @property
+    def valid(self) -> bool:
+        return not (self.mismatches or self.missing_paths or self.unverified_paths)
+
+
+def _sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as source:
+        for chunk in iter(lambda: source.read(8 * 1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def verify_install_manifest(root: Path, manifest: list[dict[str, object]]) -> ManifestVerification:
+    """Verify every locked repository file, including hidden metadata files."""
+    root = root.resolve()
+    checked_count = 0
+    mismatches: list[str] = []
+    missing_paths: list[str] = []
+    unverified_paths: list[str] = []
+
+    for entry in manifest:
+        relative = str(entry["path"]).replace("\\", "/").lstrip("/")
+        candidate = (root / relative).resolve()
+        try:
+            candidate.relative_to(root)
+        except ValueError:
+            mismatches.append(f"{relative}: path escapes install root")
+            continue
+        if not candidate.is_file():
+            missing_paths.append(relative)
+            continue
+        expected_size = int(entry.get("size") or 0)
+        actual_size = candidate.stat().st_size
+        if actual_size != expected_size:
+            mismatches.append(f"{relative}: size {actual_size} != {expected_size}")
+            continue
+        expected_sha256 = str(entry.get("sha256") or "").lower()
+        if not expected_sha256:
+            unverified_paths.append(relative)
+            continue
+        actual_sha256 = _sha256_file(candidate)
+        checked_count += 1
+        if actual_sha256 != expected_sha256:
+            mismatches.append(f"{relative}: sha256 {actual_sha256} != {expected_sha256}")
+
+    return ManifestVerification(
+        checked_count=checked_count,
+        mismatches=tuple(mismatches),
+        missing_paths=tuple(missing_paths),
+        unverified_paths=tuple(unverified_paths),
+    )
 
 
 def main() -> int:
@@ -85,13 +147,8 @@ def main() -> int:
         max_workers=4,
         progress_callbacks=[VoiceGridProgress],
     )
-    verification = api.verify_cache(
-        args.repo_id,
-        RepoType.MODEL,
-        revision=args.revision,
-        local_dir=staging,
-    )
-    if verification.mismatches or verification.missing_paths or verification.unverified_paths:
+    verification = verify_install_manifest(staging, manifest)
+    if not verification.valid:
         raise RuntimeError(f"模型完整性校验失败：{verification}")
     marker = {
         "repo_id": args.repo_id,
