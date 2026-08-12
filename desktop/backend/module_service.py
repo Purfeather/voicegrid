@@ -18,6 +18,8 @@ from .paths import (
     ROOT,
     SOUND_EFFECT_MODEL_DIR,
     SOUND_EFFECT_RUNTIME_DIR,
+    MOSS_CODEC_DIR,
+    MOSS_MODEL_DIR,
     VOICE_GENERATOR_CODEC_DIR,
     VOICE_GENERATOR_MODEL_DIR,
     VOICE_GENERATOR_RUNTIME_DIR,
@@ -26,6 +28,18 @@ from .diagnostics import append_diagnostic_log
 
 
 MODEL_LOCKS: dict[str, dict[str, Any]] = {
+    "openmoss/MOSS-TTS-Local-Transformer-v1.5": {
+        "revision": "master",
+        "file_count": 19,
+        "total_bytes": 9_116_899_103,
+        "manifest_sha256": "2ec85506d2450ce65beb83164ecedc3cf81fb38bbdedf3c0a5e35c0b49cf5063",
+    },
+    "openmoss/MOSS-Audio-Tokenizer-v2": {
+        "revision": "master",
+        "file_count": 15,
+        "total_bytes": 8_498_219_117,
+        "manifest_sha256": "84fd35a7f8bc745b6c4832d7d7f2d221756ff261c6f6a860d8f40a086a7f48ba",
+    },
     "openmoss/MOSS-VoiceGenerator": {
         "revision": "master",
         "file_count": 17,
@@ -53,8 +67,9 @@ MODULES: dict[str, dict[str, Any]] = {
         "model_name": "MOSS-TTS Local Transformer v1.5 · 4B",
         "model_id": "openmoss/MOSS-TTS-Local-Transformer-v1.5",
         "description": "参考音色克隆、情感表演、长文本切分与工程化交付。",
-        "disk_gb": 0.0,
+        "disk_gb": 16.4,
         "runtime_python": "主程序环境",
+        "runtime_mode": "host",
         "engine_available": True,
     },
     "voice_design": {
@@ -65,6 +80,7 @@ MODULES: dict[str, dict[str, Any]] = {
         "description": "无需参考音频，通过自然语言创建可供配音使用的新音色。",
         "disk_gb": 14.0,
         "runtime_python": "Python 3.12（独立环境）",
+        "runtime_mode": "isolated",
         "engine_available": True,
     },
     "sound_effect": {
@@ -74,6 +90,7 @@ MODULES: dict[str, dict[str, Any]] = {
         "description": "根据中英文描述生成最长 30 秒的 48 kHz 音效。",
         "disk_gb": 18.0,
         "runtime_python": "Python 3.12（必需）",
+        "runtime_mode": "isolated",
         "engine_available": False,
         "engine_message": "界面与安装平台已就绪；真实推理将在音色设计验收后接入。",
     },
@@ -138,6 +155,8 @@ def _safe_manifest_file(root: Path, relative: str) -> Path | None:
 
 def _lock_for_model_path(path: Path) -> dict[str, Any] | None:
     repo_id = {
+        "MOSS-TTS-Local-Transformer-v1.5": "openmoss/MOSS-TTS-Local-Transformer-v1.5",
+        "MOSS-Audio-Tokenizer-v2": "openmoss/MOSS-Audio-Tokenizer-v2",
         "MOSS-VoiceGenerator": "openmoss/MOSS-VoiceGenerator",
         "MOSS-Audio-Tokenizer": "openmoss/MOSS-Audio-Tokenizer",
         "MOSS-SoundEffect-v2.0": "openmoss/MOSS-SoundEffect-v2.0",
@@ -216,7 +235,13 @@ class ModuleService:
 
     def _detected(self, module_id: str) -> tuple[bool, bool, list[str]]:
         if module_id == "speech":
-            return True, True, []
+            model_ready = _model_complete(MOSS_MODEL_DIR, module_id) and _model_complete(MOSS_CODEC_DIR, module_id)
+            missing = []
+            if not _model_complete(MOSS_MODEL_DIR, module_id):
+                missing.append(str(MOSS_MODEL_DIR.relative_to(ROOT)))
+            if not _model_complete(MOSS_CODEC_DIR, module_id):
+                missing.append(str(MOSS_CODEC_DIR.relative_to(ROOT)))
+            return model_ready, True, missing
         if module_id == "voice_design":
             generator_ready = _model_complete(VOICE_GENERATOR_MODEL_DIR, module_id)
             codec_ready = _model_complete(VOICE_GENERATOR_CODEC_DIR, module_id)
@@ -332,9 +357,7 @@ class ModuleService:
         if module_id not in MODULES:
             raise ValueError("未知模块。")
         state = dict(self.states.get(module_id) or {})
-        if module_id == "speech":
-            model_ready, runtime_ready, missing = True, True, []
-        elif inspect:
+        if inspect:
             model_ready, runtime_ready, missing = self._detected(module_id)
         else:
             model_ready = bool(state.get("model_ready", False))
@@ -393,6 +416,8 @@ class ModuleService:
         return self.describe(module_id)
 
     def _manual_paths(self, module_id: str) -> list[str]:
+        if module_id == "speech":
+            return [str(MOSS_MODEL_DIR.relative_to(ROOT)), str(MOSS_CODEC_DIR.relative_to(ROOT))]
         if module_id == "voice_design":
             return [
                 str(VOICE_GENERATOR_MODEL_DIR.relative_to(ROOT)),
@@ -404,6 +429,8 @@ class ModuleService:
         return []
 
     def _model_ids(self, module_id: str) -> list[str]:
+        if module_id == "speech":
+            return ["openmoss/MOSS-TTS-Local-Transformer-v1.5", "openmoss/MOSS-Audio-Tokenizer-v2"]
         if module_id == "voice_design":
             return ["openmoss/MOSS-VoiceGenerator", "openmoss/MOSS-Audio-Tokenizer"]
         if module_id == "sound_effect":
@@ -413,10 +440,9 @@ class ModuleService:
     def install(self, module_id: str, confirmed: bool) -> dict[str, Any]:
         if module_id not in MODULES:
             raise ValueError("未知模块。")
-        if module_id == "speech":
-            return self.describe(module_id)
         if not confirmed:
             raise ValueError("必须确认磁盘空间和下载目录后才能安装。")
+        self._assert_install_safe(module_id)
         free_gb = shutil.disk_usage(ROOT).free / 1024**3
         required_gb = float(MODULES[module_id]["disk_gb"])
         # Downloads are staged and existing installs are retained until verification succeeds.
@@ -432,6 +458,18 @@ class ModuleService:
             self.install_threads[module_id] = thread
             thread.start()
         return self.describe(module_id)
+
+    def _assert_install_safe(self, module_id: str) -> None:
+        if module_id != "speech":
+            return
+        from app.model_engine import ENGINE
+        from .database import DB
+
+        runtime = ENGINE.describe()
+        active = bool(runtime.get("active_model")) or runtime.get("state") in {"loading", "loaded", "running", "releasing"}
+        task = DB.one("SELECT id FROM tasks WHERE module='speech' AND status IN ('queued','running') LIMIT 1")
+        if active or task is not None:
+            raise RuntimeError("语音模型正在使用中。请先安全停止任务并释放模型，再执行安装或修复。")
 
     def _run_step(
         self,
@@ -494,10 +532,12 @@ class ModuleService:
     def _install(self, module_id: str) -> None:
         _append_module_log(module_id, "INSTALL BEGIN")
         try:
-            runtime = VOICE_GENERATOR_RUNTIME_DIR if module_id == "voice_design" else SOUND_EFFECT_RUNTIME_DIR
-            runtime.parent.mkdir(parents=True, exist_ok=True)
+            self._assert_install_safe(module_id)
+            runtime = None if module_id == "speech" else VOICE_GENERATOR_RUNTIME_DIR if module_id == "voice_design" else SOUND_EFFECT_RUNTIME_DIR
             requirements = ROOT / "desktop" / "workers" / f"requirements-{module_id}.txt"
-            if not self._runtime_complete(runtime, module_id):
+            if runtime is not None:
+                runtime.parent.mkdir(parents=True, exist_ok=True)
+            if runtime is not None and not self._runtime_complete(runtime, module_id):
                 staging_runtime = runtime.parent / f".{runtime.name}.partial"
                 previous_runtime = runtime.parent / f".{runtime.name}.previous"
                 if staging_runtime.exists():
@@ -538,12 +578,13 @@ class ModuleService:
                     raise
                 if previous_runtime.exists():
                     shutil.rmtree(previous_runtime)
-            python = str(_runtime_python(runtime))
-            jobs = (
-                [("openmoss/MOSS-VoiceGenerator", VOICE_GENERATOR_MODEL_DIR), ("openmoss/MOSS-Audio-Tokenizer", VOICE_GENERATOR_CODEC_DIR)]
-                if module_id == "voice_design"
-                else [("openmoss/MOSS-SoundEffect-v2.0", SOUND_EFFECT_MODEL_DIR)]
-            )
+            python = sys.executable if runtime is None else str(_runtime_python(runtime))
+            if module_id == "speech":
+                jobs = [("openmoss/MOSS-TTS-Local-Transformer-v1.5", MOSS_MODEL_DIR), ("openmoss/MOSS-Audio-Tokenizer-v2", MOSS_CODEC_DIR)]
+            elif module_id == "voice_design":
+                jobs = [("openmoss/MOSS-VoiceGenerator", VOICE_GENERATOR_MODEL_DIR), ("openmoss/MOSS-Audio-Tokenizer", VOICE_GENERATOR_CODEC_DIR)]
+            else:
+                jobs = [("openmoss/MOSS-SoundEffect-v2.0", SOUND_EFFECT_MODEL_DIR)]
             for index, (model_id, destination) in enumerate(jobs):
                 lock = MODEL_LOCKS[model_id]
                 if _model_complete(destination, module_id):

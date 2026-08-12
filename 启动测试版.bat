@@ -5,8 +5,6 @@ set "PYTHONW=%APP_ROOT%.venv\Scripts\pythonw.exe"
 cd /d "%APP_ROOT%"
 
 if not exist "%PYTHONW%" goto missing_runtime
-if not exist "models\MOSS-TTS-Local-Transformer-v1.5" goto missing_model
-if not exist "models\MOSS-Audio-Tokenizer-v2" goto missing_model
 if not exist "desktop\frontend\dist\index.html" goto missing_frontend
 
 start "" /D "%APP_ROOT%" "%PYTHONW%" -m desktop.host
@@ -15,10 +13,6 @@ exit /b 0
 
 :missing_runtime
 echo [ERROR] Test runtime is missing.
-goto failed
-
-:missing_model
-echo [ERROR] MOSS-TTS model files are missing.
 goto failed
 
 :missing_frontend

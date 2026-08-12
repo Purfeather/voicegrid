@@ -138,6 +138,8 @@ class TaskService:
         return result
 
     def create(self, project_id: str, workspace: dict[str, Any]) -> dict[str, Any]:
+        if not MODULE_SERVICE.describe("speech")["installed"]:
+            raise FileNotFoundError("请先安装或重新检测 MOSS-TTS v1.5 4B 与 MOSS-Audio-Tokenizer-v2。")
         return self._create(project_id, "speech", workspace, build_generation_snapshot(workspace))
 
     def create_voice_design(self, project_id: str, workspace: dict[str, Any]) -> dict[str, Any]:

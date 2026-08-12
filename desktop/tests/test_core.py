@@ -235,6 +235,21 @@ class AudioOutputTests(unittest.TestCase):
 
 
 class ModelContractTests(unittest.TestCase):
+    def test_speech_models_are_managed_inside_test_optional_models(self):
+        from desktop.backend.module_service import MODEL_LOCKS, MODULE_SERVICE
+        from desktop.backend.paths import MOSS_CODEC_DIR, MOSS_MODEL_DIR, OPTIONAL_MODELS_DIR
+
+        self.assertEqual(MOSS_MODEL_DIR.parent, OPTIONAL_MODELS_DIR)
+        self.assertEqual(MOSS_CODEC_DIR.parent, OPTIONAL_MODELS_DIR)
+        self.assertIn("openmoss/MOSS-TTS-Local-Transformer-v1.5", MODEL_LOCKS)
+        self.assertIn("openmoss/MOSS-Audio-Tokenizer-v2", MODEL_LOCKS)
+        descriptor = MODULE_SERVICE.describe("speech")
+        self.assertEqual(descriptor["runtime_mode"], "host")
+        self.assertEqual(descriptor["manual_paths"], [
+            "optional-models\\MOSS-TTS-Local-Transformer-v1.5",
+            "optional-models\\MOSS-Audio-Tokenizer-v2",
+        ])
+
     def test_voice_design_pcm24_writer_and_runtime_probe(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

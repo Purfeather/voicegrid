@@ -284,6 +284,7 @@ export interface ModuleDescriptor {
   download_gb: number;
   required_disk_gb: number;
   runtime_python: string;
+  runtime_mode: "host" | "isolated";
   installed: boolean;
   model_ready: boolean;
   runtime_ready: boolean;
