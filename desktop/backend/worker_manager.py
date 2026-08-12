@@ -34,6 +34,7 @@ class WorkerManager:
         self.message = "可选模型未加载"
         self.device = ""
         self.dtype = ""
+        self.sampling_dtype = ""
         self.attention = ""
         self.diagnostic_tail: list[str] = []
 
@@ -147,6 +148,7 @@ class WorkerManager:
                 if event in {"progress", "loaded"}:
                     self.device = str(message.get("device") or self.device)
                     self.dtype = str(message.get("dtype") or self.dtype)
+                    self.sampling_dtype = str(message.get("sampling_dtype") or self.sampling_dtype)
                     self.attention = str(message.get("attention") or self.attention)
                     self.message = str(message.get("message") or self.message)
                     progress(float(message.get("progress", .5)), self.message)
@@ -170,6 +172,7 @@ class WorkerManager:
             "message": self.message,
             "device": self.device,
             "dtype": self.dtype,
+            "sampling_dtype": self.sampling_dtype,
             "attention": self.attention,
         }
 
@@ -207,6 +210,7 @@ class WorkerManager:
         self.message = "可选模型未加载"
         self.device = ""
         self.dtype = ""
+        self.sampling_dtype = ""
         self.attention = ""
 
 

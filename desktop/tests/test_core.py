@@ -19,6 +19,7 @@ from desktop.backend.schemas import ModuleTaskCreate, ProjectPatch, SoundEffectD
 from desktop.workers.module_downloader import manifest_digest, verify_install_manifest
 from desktop.workers.runtime_audio_probe import probe_pcm24
 from desktop.workers.audio_io import write_pcm24_wav
+from desktop.workers.sampling_precision import promote_sampling_logits_to_float32
 from desktop.workers.voice_generator_worker import native_bf16_available
 from desktop.backend.task_service import _next_output_index, build_generation_snapshot, estimate_speed_tokens
 
@@ -314,6 +315,26 @@ class ModelContractTests(unittest.TestCase):
         self.assertFalse(native_bf16_available((7, 5), True))
         self.assertFalse(native_bf16_available((8, 0), False))
         self.assertTrue(native_bf16_available((8, 0), True))
+
+    def test_fp32_sampling_adapter_reuses_official_sampler(self) -> None:
+        calls: list[tuple[object, object]] = []
+
+        class FakeLogits:
+            def __init__(self, name: str) -> None:
+                self.name = name
+
+            def float(self) -> "FakeLogits":
+                return FakeLogits("float32")
+
+        def official_sampler(logits, *, top_k=None):
+            calls.append((logits, top_k))
+            return "sampled"
+
+        adapter = promote_sampling_logits_to_float32(official_sampler)
+        self.assertEqual(adapter(logits=FakeLogits("float16"), top_k=50), "sampled")
+        self.assertEqual(calls[0][0].name, "float32")
+        self.assertEqual(calls[0][1], 50)
+        self.assertTrue(getattr(adapter, "_voicegrid_fp32_sampling"))
 
     def test_model_lock_contracts_are_stable(self) -> None:
         self.assertEqual(MODEL_LOCKS["openmoss/MOSS-VoiceGenerator"]["file_count"], 17)

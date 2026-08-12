@@ -10,8 +10,10 @@ from pathlib import Path
 
 try:
     from .audio_io import write_pcm24_wav
+    from .sampling_precision import install_fp32_sampling
 except ImportError:  # Direct execution by an isolated optional runtime.
     from audio_io import write_pcm24_wav
+    from sampling_precision import install_fp32_sampling
 
 
 PROTOCOL_PREFIX = "VOICEGRID_EVENT "
@@ -37,6 +39,7 @@ class VoiceGeneratorWorker:
         self.torch = None
         self.device = "cuda"
         self.dtype_name = "bfloat16"
+        self.sampling_dtype_name = "native"
         self.attention = "sdpa"
 
     def load(self) -> None:
@@ -93,6 +96,12 @@ class VoiceGeneratorWorker:
                 torch_dtype=dtype,
             ).to(self.device)
         model.eval()
+        if dtype == torch.float16:
+            if not install_fp32_sampling(model):
+                raise RuntimeError("无法安装 FP16 稳定采样适配层。")
+            self.sampling_dtype_name = "float32"
+        else:
+            self.sampling_dtype_name = self.dtype_name
         self.torch = torch
         self.processor = processor
         self.model = model
@@ -102,6 +111,7 @@ class VoiceGeneratorWorker:
             message="MOSS-VoiceGenerator 已就绪",
             device=self.device,
             dtype=self.dtype_name,
+            sampling_dtype=self.sampling_dtype_name,
             attention=self.attention,
         )
 
