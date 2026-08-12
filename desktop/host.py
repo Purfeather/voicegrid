@@ -33,7 +33,7 @@ APP_URL = f"http://{HOST}:{PORT}/projects"
 STARTUP_LOG = LOGS_DIR / "desktop-startup.log"
 TRACE_PATH = Path(os.environ.get("MOSS_TTS_TRACE_PATH", LOGS_DIR / "startup-trace-latest.jsonl")).resolve()
 MUTEX_NAME = os.environ.get("MOSS_TTS_MUTEX_NAME", r"Local\LongRongAIStudioV2")
-WINDOW_TITLE = os.environ.get("MOSS_TTS_WINDOW_TITLE", "声格 VoiceGrid 1.0 Beta")
+WINDOW_TITLE = os.environ.get("MOSS_TTS_WINDOW_TITLE", "声格 VoiceGrid 2.0")
 STARTED_AT = time.perf_counter()
 
 
@@ -172,7 +172,7 @@ class NativeSplash:
             brand_copy = tk.Frame(brand, bg="#090a0b")
             brand_copy.pack(side="left", padx=12)
             tk.Label(brand_copy, text="声格 VoiceGrid", bg="#090a0b", fg="#f4f6f8", font=("Microsoft YaHei UI", 12, "bold")).pack(anchor="w")
-            tk.Label(brand_copy, text="龙融影业 · 1.0 Beta", bg="#090a0b", fg="#9aa2ad", font=("Microsoft YaHei UI", 9)).pack(anchor="w", pady=(3, 0))
+            tk.Label(brand_copy, text="龙融影业 · 2.0", bg="#090a0b", fg="#9aa2ad", font=("Microsoft YaHei UI", 9)).pack(anchor="w", pady=(3, 0))
             tk.Label(brand_copy, text="作者：Wang Xiaohan", bg="#090a0b", fg="#9aa2ad", font=("Segoe UI", 8)).pack(anchor="w", pady=(3, 0))
 
             content = tk.Frame(shell, bg="#090a0b")
@@ -232,7 +232,7 @@ class NativeSplash:
             action_button("退出", lambda: threading.Thread(target=self.host.shutdown, name="splash-exit", daemon=True).start())
             footer = tk.Frame(card, bg="#111315")
             footer.pack(side="bottom", fill="x", pady=(18, 0))
-            tk.Label(footer, text="1.0 Beta", bg="#111315", fg="#9aa2ad", font=("Consolas", 8)).pack(side="left")
+            tk.Label(footer, text="2.0.0-dev", bg="#111315", fg="#9aa2ad", font=("Consolas", 8)).pack(side="left")
             tk.Label(footer, textvariable=elapsed_var, bg="#111315", fg="#9aa2ad", font=("Consolas", 8)).pack(side="right")
 
             phase_names = {

@@ -1,6 +1,6 @@
-# 声格 VoiceGrid 1.0 Beta
+# 声格 VoiceGrid 2.0（开发测试版）
 
-声格 VoiceGrid 是龙融影业的本地桌面配音工作站，作者为 Wang Xiaohan。界面使用 React + TypeScript，后端使用 FastAPI + SQLite，桌面窗口由 PyWebView2 承载。当前冻结版本为 `1.0.0-beta.1`，尚未进入 EXE 或 ZIP 分发阶段。
+声格 VoiceGrid 是龙融影业的本地桌面音频工作站，作者为 Wang Xiaohan。界面使用 React + TypeScript，后端使用 FastAPI + SQLite，桌面窗口由 PyWebView2 承载。当前多模块开发版本为 `2.0.0-dev`；上一个可回退冻结点为 `v1.0.0-beta.1`。
 
 ## 启动
 

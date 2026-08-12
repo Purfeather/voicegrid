@@ -6,8 +6,8 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[2]
-INTERNAL_VERSION = "1.0.0-beta.1"
-DISPLAY_VERSION = "1.0 Beta"
+INTERNAL_VERSION = "2.0.0-dev"
+DISPLAY_VERSION = "2.0"
 
 
 class VersionConsistencyTests(unittest.TestCase):
@@ -20,9 +20,9 @@ class VersionConsistencyTests(unittest.TestCase):
         self.assertEqual(package["version"], INTERNAL_VERSION)
         self.assertEqual(package_lock["version"], INTERNAL_VERSION)
         self.assertEqual(package_lock["packages"][""]["version"], INTERNAL_VERSION)
-        self.assertEqual(build["build_id"], "LRYY-VOICEGRID-1.0-BETA-20260812")
+        self.assertEqual(build["build_id"], "LRYY-VOICEGRID-2.0-DEV-20260812")
 
-    def test_visible_shells_use_beta_display_name(self) -> None:
+    def test_visible_shells_use_display_name(self) -> None:
         for relative in (
             "desktop/host.py",
             "desktop/splash_host.py",

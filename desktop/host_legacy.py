@@ -143,7 +143,7 @@ class NativeHost:
         self.start_server()
         DESKTOP.register(self.command)
         self.window = webview.create_window(
-            "声格 VoiceGrid 1.0 Beta（旧启动链）",
+            "声格 VoiceGrid 2.0（旧启动链）",
             APP_URL,
             js_api=NativeApi(self),
             width=1600,
