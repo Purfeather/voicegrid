@@ -1,0 +1,8 @@
+{
+  "brand": "龙融影业",
+  "product": "AI配音台",
+  "version": "2.0.0-dev",
+  "model": "MOSS-TTS-Local-Transformer-v1.5 (4B)",
+  "build_id": "LRYY-AIVOICE-2.0-DEV-20260811",
+  "status": "development"
+}

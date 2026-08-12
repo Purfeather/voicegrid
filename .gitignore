@@ -1,0 +1,48 @@
+# Local Python and frontend dependency environments
+.venv/
+node_modules/
+**/node_modules/
+
+# Shared model junction and generated runtime state
+models/
+data/
+projects/
+references/
+outputs/
+logs/
+.rebuild-cache/
+
+# Archived pre-rebuild material is retained locally, not versioned
+archive/
+
+# Startup performance lab runtime artifacts
+startup-lab/cache/
+startup-lab/results/
+
+# Python, test and build caches
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.tsbuildinfo
+coverage/
+.coverage
+
+# Local editor and operating-system files
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Temporary and package artifacts
+*.tmp
+*.temp
+*.bak
+*.zip
+*.7z
+*.part*
+
+desktop/frontend/.vite/
+desktop/frontend/coverage/

@@ -1,0 +1,17 @@
+torch==2.9.1+cu128
+torchaudio==2.9.1+cu128
+transformers==5.0.0
+modelscope==1.39.1
+accelerate
+safetensors
+soundfile
+librosa
+scipy
+fastapi
+uvicorn
+python-multipart
+psutil
+pyloudnorm
+pywebview
+pystray
+pillow

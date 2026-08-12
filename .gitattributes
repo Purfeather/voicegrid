@@ -1,0 +1,34 @@
+* text=auto
+
+# Windows launchers must stay ASCII-compatible with CRLF line endings.
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# Source, configuration and documentation use UTF-8 with LF in Git.
+*.py text eol=lf
+*.ts text eol=lf
+*.tsx text eol=lf
+*.js text eol=lf
+*.jsx text eol=lf
+*.css text eol=lf
+*.html text eol=lf
+*.json text eol=lf
+*.md text eol=lf
+*.txt text eol=lf
+*.log text eol=lf
+
+# Binary assets and audio must never receive line-ending conversion.
+*.ico binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.webp binary
+*.wav binary
+*.flac binary
+*.mp3 binary
+*.safetensors binary
+*.db binary
+
+# Generated bundles are text but should not create noisy diff heuristics.
+desktop/frontend/dist/** linguist-generated=true
+package-lock.json linguist-generated=true
