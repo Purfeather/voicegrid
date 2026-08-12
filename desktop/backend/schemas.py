@@ -162,6 +162,11 @@ class SaveDesignedVoice(BaseModel):
     name: str = Field(min_length=1, max_length=80)
 
 
+class SoundEffectOutputPatch(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=120)
+    favorite: bool | None = None
+
+
 class StyleCreate(BaseModel):
     name: str = Field(min_length=1, max_length=60)
     instruction: str = Field(min_length=1, max_length=2000)

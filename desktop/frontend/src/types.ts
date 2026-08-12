@@ -183,7 +183,8 @@ export interface OutputRecord {
   module: ModuleId;
   kind: "speech_output" | "voice_design_output" | "sound_effect_output";
   instruction?: string;
-  generation_snapshot?: GenerationSnapshot | VoiceDesignGenerationSnapshot;
+  favorite?: boolean;
+  generation_snapshot?: GenerationSnapshot | VoiceDesignGenerationSnapshot | SoundEffectGenerationSnapshot;
 }
 
 export interface GenerationSnapshot {
@@ -206,6 +207,18 @@ export interface VoiceDesignGenerationSnapshot {
   parameters: VoiceDesignParameters;
   model: string;
   codec: string;
+}
+
+export interface SoundEffectGenerationSnapshot {
+  prompt: string;
+  seconds: number;
+  num_inference_steps: number;
+  cfg_scale: number;
+  sigma_shift: number;
+  seed: number;
+  model: string;
+  runtime_precision: "float16";
+  low_vram: true;
 }
 
 export type SpeedLevel = "慢" | "较慢" | "中等" | "较快" | "快";

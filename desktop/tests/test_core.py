@@ -15,14 +15,14 @@ from desktop.backend import output_engineering, repository
 from desktop.backend.database import Database
 from desktop.backend.defaults import PARAMETER_PRESETS
 from desktop.backend.module_service import MODEL_LOCKS, RUNTIME_PYTHON_LOCKS, RUNTIME_VERSION_LOCKS, ModuleService, _model_complete
-from desktop.backend.schemas import ModuleTaskCreate, ProjectPatch, SoundEffectDraft, VoiceDesignDraft, WorkspaceDraft
+from desktop.backend.schemas import ModuleTaskCreate, ProjectPatch, SoundEffectDraft, SoundEffectOutputPatch, VoiceDesignDraft, WorkspaceDraft
 from desktop.workers.module_downloader import manifest_digest, verify_install_manifest
 from desktop.workers.runtime_audio_probe import probe_pcm24
 from desktop.workers.audio_io import write_pcm24_wav
 from desktop.workers.cuda_policy import sdpa_policy, voice_generator_precision_policy
 from desktop.workers.sampling_precision import promote_sampling_logits_to_float32, validate_sampleable_logits
 from desktop.workers.voice_generator_worker import native_bf16_available
-from desktop.backend.task_service import _next_output_index, build_generation_snapshot, estimate_speed_tokens
+from desktop.backend.task_service import _next_output_index, build_generation_snapshot, build_sound_effect_snapshot, estimate_speed_tokens
 
 
 def sine(sample_rate: int, seconds: float) -> np.ndarray:
@@ -73,6 +73,42 @@ class RepositoryTests(unittest.TestCase):
                     self.assertNotIn("target_duration_enabled", opened["workspace"])
             finally:
                 database.close()
+
+    def test_sound_effect_output_metadata_can_be_renamed_favorited_and_deleted(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            database = Database(root / "app.db")
+            database.initialize()
+            try:
+                with patch.object(repository, "DB", database), patch.object(repository, "PROJECTS_DIR", root / "projects"):
+                    project = repository.create_project("音效项目", "Chinese")
+                    output_dir = repository.project_output_directory(project["id"], "sound_effect", create=True)
+                    source = output_dir / "音效项目_音效_001_20260813_120000.wav"
+                    sf.write(source, sine(48000, 1), 48000, subtype="PCM_24")
+                    record = repository.add_output(project["id"], "task", {
+                        "path": str(source), "filename": source.name, "created_at": repository.now(),
+                        "duration": 1.0, "sample_rate": 48000, "channels": 1, "bit_depth": 24,
+                        "format": "WAV", "voice": "项目音效", "text": "雨声", "favorite": False,
+                        "generation_snapshot": build_sound_effect_snapshot({"prompt": "雨声", "parameters": {}}),
+                    }, "sound_effect", "sound_effect_output")
+                    updated = repository.update_sound_effect_output(record["id"], SoundEffectOutputPatch(name="收藏雨声", favorite=True))
+                    self.assertEqual(updated["filename"], "收藏雨声.wav")
+                    self.assertTrue(updated["favorite"])
+                    self.assertTrue((output_dir / "收藏雨声.wav").is_file())
+                    repository.delete_sound_effect_output(record["id"], True)
+                    self.assertFalse((output_dir / "收藏雨声.wav").exists())
+                    self.assertEqual(repository.list_outputs(project["id"], "sound_effect"), [])
+            finally:
+                database.close()
+
+    def test_sound_effect_snapshot_records_precision_and_low_vram_mode(self) -> None:
+        snapshot = build_sound_effect_snapshot({
+            "prompt": "金属门开启",
+            "parameters": {"seconds": 20, "num_inference_steps": 100, "cfg_scale": 4.0, "sigma_shift": 5.0, "seed": 2026},
+        })
+        self.assertEqual(snapshot["seconds"], 20)
+        self.assertEqual(snapshot["runtime_precision"], "float16")
+        self.assertTrue(snapshot["low_vram"])
 
     def test_project_is_atomic_and_recovery_is_indexed(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

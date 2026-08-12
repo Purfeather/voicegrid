@@ -47,6 +47,8 @@ from .repository import (
     save_output_as_voice,
     save_style,
     update_voice,
+    update_sound_effect_output,
+    delete_sound_effect_output,
 )
 from .runtime_service import RUNTIME
 from .schemas import (
@@ -55,6 +57,7 @@ from .schemas import (
     ProjectCreate,
     ProjectPatch,
     SaveDesignedVoice,
+    SoundEffectOutputPatch,
     StyleCreate,
     VoicePatch,
 )
@@ -316,7 +319,11 @@ def module_task_create(request: ModuleTaskCreate):
             if not workspace["instruction"].strip():
                 raise ValueError("请输入最终音色提示词。")
             return TASKS.create_voice_design(request.project_id, workspace)
-        raise ValueError("音效生成引擎尚未开放。")
+        if request.module == "sound_effect":
+            if not workspace["prompt"].strip():
+                raise ValueError("请输入需要生成的声音场景。")
+            return TASKS.create_sound_effect(request.project_id, workspace)
+        raise ValueError("未知的生成模块。")
     except Exception as exc:
         raise _translate_error(exc) from exc
 
@@ -327,6 +334,25 @@ def voice_design_save(output_id: str, request: SaveDesignedVoice):
         voice = save_output_as_voice(output_id, request.name)
         EVENTS.publish("voice.updated", voice)
         return voice
+    except Exception as exc:
+        raise _translate_error(exc) from exc
+
+
+@app.patch("/api/v2/sound-effects/outputs/{output_id}")
+def sound_effect_output_update(output_id: str, request: SoundEffectOutputPatch):
+    try:
+        output = update_sound_effect_output(output_id, request)
+        EVENTS.publish("project.saved", {"id": output["project_id"], "module": "sound_effect"})
+        return output
+    except Exception as exc:
+        raise _translate_error(exc) from exc
+
+
+@app.delete("/api/v2/sound-effects/outputs/{output_id}", status_code=204)
+def sound_effect_output_remove(output_id: str, delete_file: bool = True):
+    try:
+        project_id = delete_sound_effect_output(output_id, delete_file)
+        EVENTS.publish("project.saved", {"id": project_id, "module": "sound_effect"})
     except Exception as exc:
         raise _translate_error(exc) from exc
 

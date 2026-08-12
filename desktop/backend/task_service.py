@@ -84,6 +84,21 @@ def build_voice_design_snapshot(workspace: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def build_sound_effect_snapshot(workspace: dict[str, Any]) -> dict[str, Any]:
+    parameters = dict(workspace.get("parameters") or {})
+    return {
+        "prompt": str(workspace.get("prompt") or "").strip(),
+        "seconds": int(parameters.get("seconds", 10)),
+        "num_inference_steps": int(parameters.get("num_inference_steps", 100)),
+        "cfg_scale": float(parameters.get("cfg_scale", 4.0)),
+        "sigma_shift": float(parameters.get("sigma_shift", 5.0)),
+        "seed": int(parameters.get("seed", 2026)),
+        "model": "openmoss/MOSS-SoundEffect-v2.0",
+        "runtime_precision": "float16",
+        "low_vram": True,
+    }
+
+
 def _safe_filename_component(value: str, fallback: str) -> str:
     clean = re.sub(r"[\\/:*?\"<>|\x00-\x1f]", "_", (value or "").strip())
     clean = re.sub(r"\s+", " ", clean).strip(" ._")
@@ -146,6 +161,14 @@ class TaskService:
         if not MODULE_SERVICE.describe("voice_design")["installed"]:
             raise FileNotFoundError("请先安装或重新检测 MOSS-VoiceGenerator 与独立运行环境。")
         return self._create(project_id, "voice_design", workspace, build_voice_design_snapshot(workspace))
+
+    def create_sound_effect(self, project_id: str, workspace: dict[str, Any]) -> dict[str, Any]:
+        descriptor = MODULE_SERVICE.describe("sound_effect")
+        if not descriptor["installed"]:
+            raise FileNotFoundError("请先安装或重新检测 MOSS-SoundEffect v2.0 与独立运行环境。")
+        if not descriptor.get("engine_available"):
+            raise RuntimeError(descriptor.get("engine_message") or "音效生成引擎不可用。")
+        return self._create(project_id, "sound_effect", workspace, build_sound_effect_snapshot(workspace))
 
     def cancel(self, task_id: str) -> dict[str, Any]:
         task = get_task(task_id)
@@ -315,6 +338,83 @@ class TaskService:
                 final_sidecar.unlink(missing_ok=True)
             raise
 
+    def _run_sound_effect(self, task_id: str, payload: dict[str, Any]) -> None:
+        project = get_project(payload["project_id"])
+        workspace = payload["workspace"]
+        generation_snapshot = payload.get("generation_snapshot") or build_sound_effect_snapshot(workspace)
+        parameters = dict(workspace.get("parameters") or {})
+        output_dir = project_output_directory(payload["project_id"], "sound_effect", create=True)
+        index = _next_output_index(output_dir, len(list_outputs(payload["project_id"], "sound_effect")) + 1)
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        project_name = _safe_filename_component(project["name"], "未命名项目")
+        filename = f"{project_name}_音效_{index:03d}_{timestamp}.wav"
+        output_path = output_dir / filename
+        partial_path = output_dir / f".{filename}.partial.wav"
+        partial_sidecar = partial_path.with_suffix(partial_path.suffix + ".json")
+        final_sidecar = output_path.with_suffix(output_path.suffix + ".json")
+        record_registered = False
+        partial_path.unlink(missing_ok=True)
+        partial_sidecar.unlink(missing_ok=True)
+        RUNTIME.prepare("sound_effect")
+        EVENTS.publish("runtime.updated", RUNTIME.describe())
+        try:
+            generated = WORKERS.request_sound_effect(
+                {
+                    "prompt": workspace["prompt"],
+                    "seconds": int(parameters.get("seconds", 10)),
+                    "num_inference_steps": int(parameters.get("num_inference_steps", 100)),
+                    "cfg_scale": float(parameters.get("cfg_scale", 4.0)),
+                    "sigma_shift": float(parameters.get("sigma_shift", 5.0)),
+                    "seed": int(parameters.get("seed", 2026)),
+                    "output_path": str(partial_path),
+                },
+                lambda value, message: self._runtime_progress(task_id, value, message),
+                lambda: cancel_requested(task_id),
+            )
+            if not partial_path.is_file() or partial_path.stat().st_size <= 44:
+                raise RuntimeError("音效输出未完整写入。")
+            os.replace(partial_path, output_path)
+            generation_snapshot.update({
+                "runtime_precision": generated.get("runtime_precision", "float16"),
+                "low_vram": bool(generated.get("low_vram", True)),
+            })
+            metadata = {
+                "path": str(output_path),
+                "filename": filename,
+                "created_at": now(),
+                "duration": round(float(generated["duration"]), 3),
+                "sample_rate": int(generated["sample_rate"]),
+                "channels": int(generated["channels"]),
+                "bit_depth": int(generated.get("bit_depth", 24)),
+                "format": "WAV",
+                "voice": "项目音效",
+                "text": workspace["prompt"],
+                "prompt": workspace["prompt"],
+                "favorite": False,
+                "runtime_precision": generated.get("runtime_precision", "float16"),
+                "low_vram": bool(generated.get("low_vram", True)),
+                "cuda_peak_allocated_mib": generated.get("cuda_peak_allocated_mib"),
+                "cuda_peak_reserved_mib": generated.get("cuda_peak_reserved_mib"),
+                "generation_snapshot": generation_snapshot,
+            }
+            _write_sidecar(output_path, metadata)
+            try:
+                record = add_output(payload["project_id"], task_id, metadata, "sound_effect", "sound_effect_output")
+                record_registered = True
+            except Exception:
+                output_path.unlink(missing_ok=True)
+                final_sidecar.unlink(missing_ok=True)
+                raise
+            self._publish_task(task_id, status="completed", progress=1.0, message="音效生成完成", result_id=record["id"])
+            EVENTS.publish("project.saved", {"id": payload["project_id"], "module": "sound_effect"})
+        except Exception:
+            partial_path.unlink(missing_ok=True)
+            partial_sidecar.unlink(missing_ok=True)
+            if output_path.is_file() and not record_registered:
+                output_path.unlink(missing_ok=True)
+                final_sidecar.unlink(missing_ok=True)
+            raise
+
     def _run(self, task_id: str) -> None:
         if cancel_requested(task_id):
             self._publish_task(task_id, status="cancelled", message="任务已取消")
@@ -329,6 +429,8 @@ class TaskService:
                 self._run_speech(task_id, payload)
             elif module == "voice_design":
                 self._run_voice_design(task_id, payload)
+            elif module == "sound_effect":
+                self._run_sound_effect(task_id, payload)
             else:
                 raise ValueError("当前模块尚未接入生成引擎。")
             EVENTS.publish("runtime.updated", RUNTIME.describe())

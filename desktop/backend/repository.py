@@ -15,7 +15,7 @@ from .audio import analyze_audio, internal_audio_path, save_upload
 from .database import DB
 from .defaults import default_workspace
 from .paths import PROJECTS_DIR, UPLOADS_DIR, VOICES_DIR
-from .schemas import ProjectWorkspaces, SoundEffectDraft, VoiceDesignDraft, VoicePatch, WorkspaceDraft
+from .schemas import ProjectWorkspaces, SoundEffectDraft, SoundEffectOutputPatch, VoiceDesignDraft, VoicePatch, WorkspaceDraft
 
 
 _PROJECT_WRITE_LOCK = threading.RLock()
@@ -650,6 +650,90 @@ def list_outputs(project_id: str, module: str | None = None) -> list[dict[str, A
         record["artifact_url"] = f"/api/v2/artifacts/{row['id']}"
         records.append(record)
     return records
+
+
+def _rewrite_output_snapshot(project_id: str, output_id: str, record: dict[str, Any]) -> None:
+    path = _project_file(project_id)
+    with _PROJECT_WRITE_LOCK:
+        payload = _read_project(path)
+        snapshots = payload.setdefault("output_snapshots", {})
+        if output_id not in snapshots:
+            raise FileNotFoundError("项目输出快照不存在。")
+        snapshots[output_id] = {key: value for key, value in record.items() if key != "artifact_url"}
+        payload["updated_at"] = now()
+        _write_atomic(path, payload)
+
+
+def update_sound_effect_output(output_id: str, patch: SoundEffectOutputPatch) -> dict[str, Any]:
+    row = DB.one("SELECT * FROM outputs WHERE id=? AND module='sound_effect'", (output_id,))
+    if row is None:
+        raise FileNotFoundError("音效资源不存在。")
+    record = json.loads(row["metadata_json"])
+    source_path = _rebuildable_output_path(str(row["project_id"]), "sound_effect", str(row["path"]))
+    if source_path is None:
+        raise ValueError("音效资源不在当前项目的受控目录内。")
+    changes = patch.model_dump(exclude_unset=True)
+    target_path = source_path
+    if "name" in changes:
+        stem = re.sub(r"[\\/:*?\"<>|\x00-\x1f]", "_", str(changes["name"] or "").strip())
+        stem = re.sub(r"\s+", " ", stem).strip(" ._")[:120]
+        if not stem:
+            raise ValueError("音效名称不能为空。")
+        target_path = source_path.with_name(f"{stem}{source_path.suffix.lower()}")
+        if target_path != source_path and target_path.exists():
+            raise FileExistsError("同名音效文件已存在。")
+        if target_path != source_path:
+            source_sidecar = source_path.with_suffix(source_path.suffix + ".json")
+            target_sidecar = target_path.with_suffix(target_path.suffix + ".json")
+            os.replace(source_path, target_path)
+            if source_sidecar.exists():
+                os.replace(source_sidecar, target_sidecar)
+        record["filename"] = target_path.name
+        record["path"] = str(target_path)
+    if "favorite" in changes:
+        record["favorite"] = bool(changes["favorite"])
+    record["artifact_url"] = f"/api/v2/artifacts/{output_id}"
+    try:
+        _rewrite_output_snapshot(str(row["project_id"]), output_id, record)
+        with DB.transaction() as connection:
+            connection.execute(
+                "UPDATE outputs SET path=?,filename=?,metadata_json=? WHERE id=?",
+                (str(target_path), record["filename"], json.dumps(record, ensure_ascii=False), output_id),
+            )
+        sidecar = target_path.with_suffix(target_path.suffix + ".json")
+        sidecar.write_text(json.dumps({key: value for key, value in record.items() if key != "artifact_url"}, ensure_ascii=False, indent=2), encoding="utf-8", newline="\n")
+    except Exception:
+        if target_path != source_path and target_path.exists() and not source_path.exists():
+            os.replace(target_path, source_path)
+            target_sidecar = target_path.with_suffix(target_path.suffix + ".json")
+            source_sidecar = source_path.with_suffix(source_path.suffix + ".json")
+            if target_sidecar.exists():
+                os.replace(target_sidecar, source_sidecar)
+        raise
+    result = dict(record)
+    result.pop("path", None)
+    return result
+
+
+def delete_sound_effect_output(output_id: str, delete_file: bool = True) -> str:
+    row = DB.one("SELECT * FROM outputs WHERE id=? AND module='sound_effect'", (output_id,))
+    if row is None:
+        raise FileNotFoundError("音效资源不存在。")
+    project_id = str(row["project_id"])
+    path = _project_file(project_id)
+    with _PROJECT_WRITE_LOCK:
+        payload = _read_project(path)
+        payload.setdefault("output_snapshots", {}).pop(output_id, None)
+        payload["updated_at"] = now()
+        _write_atomic(path, payload)
+    with DB.transaction() as connection:
+        connection.execute("DELETE FROM outputs WHERE id=?", (output_id,))
+    if delete_file:
+        trusted = _deletable_output_path(project_id, str(row["path"]))
+        if trusted is not None:
+            trusted.unlink(missing_ok=True)
+            trusted.with_suffix(trusted.suffix + ".json").unlink(missing_ok=True)
+    return project_id
 
 
 def clear_outputs(project_id: str, delete_files: bool, module: str | None = None) -> None:

@@ -86,6 +86,11 @@ export const api = {
     method: "POST",
     body: JSON.stringify({ name }),
   }),
+  updateSoundEffect: (outputId: string, patch: { name?: string; favorite?: boolean }) => request<OutputRecord>(`/sound-effects/outputs/${outputId}`, {
+    method: "PATCH",
+    body: JSON.stringify(patch),
+  }),
+  deleteSoundEffect: (outputId: string, deleteFile = true) => request<void>(`/sound-effects/outputs/${outputId}?delete_file=${deleteFile}`, { method: "DELETE" }),
   tasks: (projectId: string, module?: ModuleId) => request<TaskRecord[]>(`/tasks?project_id=${encodeURIComponent(projectId)}${module ? `&module=${module}` : ""}`),
   cancelTask: (id: string) => request<TaskRecord>(`/tasks/${id}/cancel`, { method: "POST" }),
   removeTask: (id: string) => request<TaskRemovalResult>(`/tasks/${id}`, { method: "DELETE" }),
