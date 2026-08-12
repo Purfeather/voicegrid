@@ -82,6 +82,16 @@
 .currentOutput span { color: var(--text-muted); font-size: 9px; }
 .currentOutput audio { width: 100%; height: 34px; }
 .outputActions { display: grid !important; grid-template-columns: 1fr 1fr; gap: 6px !important; }
+.generationDetails { border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); background: var(--surface-sunken); color: var(--text-secondary); font-size: 10px; }
+.generationDetails summary { padding: 8px 10px; cursor: pointer; color: var(--text-primary); font-weight: 700; }
+.generationDetails[open] summary { border-bottom: 1px solid var(--border-subtle); }
+.generationDetails dl { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1px; margin: 0; background: var(--border-subtle); }
+.generationDetails dl div { min-width: 0; display: grid; gap: 2px; padding: 7px 9px; background: var(--surface-panel); }
+.generationDetails dt { color: var(--text-muted); }
+.generationDetails dd { min-width: 0; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-primary); }
+.generationDetails > strong, .generationDetails > p, .generationDetails > ol { display: block; margin: 8px 10px; }
+.generationDetails > p { max-height: 64px; overflow: auto; white-space: pre-wrap; }
+.generationDetails > ol { max-height: 100px; overflow: auto; padding-inline-start: 18px; }
 .downloadButton { min-height: 36px; display: inline-flex; align-items: center; justify-content: center; gap: 7px; border-radius: var(--radius-sm); background: var(--accent-gradient); color: var(--on-accent); font-weight: 700; text-decoration: none; }
 :root[data-theme="light"] .downloadButton { color: var(--on-accent); }
 

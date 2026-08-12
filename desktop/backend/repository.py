@@ -94,6 +94,7 @@ def mark_project_index_ready() -> None:
 def rebuild_project_index(mode: str = "rebuild") -> int:
     _set_index_state(status="running", indexed=0, error=None, mode=mode)
     records: list[tuple[Any, ...]] = []
+    output_records: list[tuple[Any, ...]] = []
     for path in PROJECTS_DIR.glob("*/project.json"):
         try:
             payload = _read_project(path)
@@ -104,6 +105,20 @@ def rebuild_project_index(mode: str = "rebuild") -> int:
                 int(payload.get("revision", 1)), int(bool(payload.get("session_active"))),
                 int(bool(payload.get("recovery_available"))), voice_id,
             ))
+            for output_id, output in (payload.get("output_snapshots") or {}).items():
+                output_path = str(output.get("path") or "")
+                if not output_path or not Path(output_path).is_file():
+                    continue
+                record = {**output, "id": output_id, "project_id": payload["id"]}
+                output_records.append((
+                    output_id,
+                    payload["id"],
+                    str(record.get("task_id") or "recovered"),
+                    output_path,
+                    str(record.get("filename") or Path(output_path).name),
+                    str(record.get("created_at") or payload["updated_at"]),
+                    json.dumps(record, ensure_ascii=False),
+                ))
         except Exception:
             continue
     try:
@@ -117,6 +132,14 @@ def rebuild_project_index(mode: str = "rebuild") -> int:
                     recovery_available=excluded.recovery_available,voice_id=excluded.voice_id""",
                     records,
                 )
+                if output_records:
+                    connection.executemany(
+                        """INSERT INTO outputs(id,project_id,task_id,path,filename,created_at,metadata_json)
+                        VALUES(?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET
+                        project_id=excluded.project_id,task_id=excluded.task_id,path=excluded.path,
+                        filename=excluded.filename,created_at=excluded.created_at,metadata_json=excluded.metadata_json""",
+                        output_records,
+                    )
         _set_index_state(status="ready", indexed=len(records), error=None, mode=mode)
         return len(records)
     except Exception as exc:
@@ -135,7 +158,7 @@ def create_project(name: str, language: str) -> dict[str, Any]:
     output_directory.mkdir(parents=True, exist_ok=True)
     timestamp = now()
     payload = {
-        "schema_version": 2,
+        "schema_version": 3,
         "id": project_id,
         "name": _safe_project_name(name),
         "created_at": timestamp,
@@ -144,6 +167,7 @@ def create_project(name: str, language: str) -> dict[str, Any]:
         "session_active": True,
         "recovery_available": False,
         "workspace": default_workspace(language, output_directory),
+        "output_snapshots": {},
     }
     path = project_root / "project.json"
     _write_atomic(path, payload)
@@ -432,6 +456,13 @@ def clear_finished_tasks(project_id: str) -> None:
 def add_output(project_id: str, task_id: str, metadata: dict[str, Any]) -> dict[str, Any]:
     output_id = uuid.uuid4().hex
     record = {**metadata, "id": output_id, "project_id": project_id, "task_id": task_id, "artifact_url": f"/api/v2/artifacts/{output_id}"}
+    path = _project_file(project_id)
+    with _PROJECT_WRITE_LOCK:
+        payload = _read_project(path)
+        payload.setdefault("output_snapshots", {})[output_id] = {key: value for key, value in record.items() if key != "artifact_url"}
+        payload["schema_version"] = max(3, int(payload.get("schema_version", 2)))
+        payload["updated_at"] = now()
+        _write_atomic(path, payload)
     with DB.transaction() as connection:
         connection.execute("INSERT INTO outputs(id,project_id,task_id,path,filename,created_at,metadata_json) VALUES(?,?,?,?,?,?,?)", (output_id, project_id, task_id, metadata["path"], metadata["filename"], metadata["created_at"], json.dumps(record, ensure_ascii=False)))
     return record
@@ -449,6 +480,12 @@ def list_outputs(project_id: str) -> list[dict[str, Any]]:
 
 def clear_outputs(project_id: str, delete_files: bool) -> None:
     rows = DB.query("SELECT path FROM outputs WHERE project_id=?", (project_id,))
+    path = _project_file(project_id)
+    with _PROJECT_WRITE_LOCK:
+        payload = _read_project(path)
+        payload["output_snapshots"] = {}
+        payload["updated_at"] = now()
+        _write_atomic(path, payload)
     with DB.transaction() as connection:
         connection.execute("DELETE FROM outputs WHERE project_id=?", (project_id,))
     if delete_files:

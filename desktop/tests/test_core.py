@@ -15,7 +15,7 @@ from desktop.backend import output_engineering, repository
 from desktop.backend.database import Database
 from desktop.backend.defaults import PARAMETER_PRESETS
 from desktop.backend.schemas import WorkspaceDraft
-from desktop.backend.task_service import duration_to_tokens
+from desktop.backend.task_service import build_generation_snapshot, duration_to_tokens
 
 
 def sine(sample_rate: int, seconds: float) -> np.ndarray:
@@ -146,6 +146,46 @@ class ModelContractTests(unittest.TestCase):
         self.assertFalse(workspace.target_duration_enabled)
         self.assertEqual(workspace.target_duration_seconds, 10)
         self.assertNotIn("natural_speed", workspace.model_dump())
+
+    def test_generation_snapshot_freezes_style_segments_and_duration(self) -> None:
+        workspace = repository.default_workspace("Chinese", Path("outputs"))
+        workspace["text"] = "第一段用于验证生成快照能够保存切分信息。第二段继续验证每段都对应相同的生成风格。"
+        workspace["style"] = "纪录片旁白"
+        workspace["instruction"] = "沉稳、克制"
+        workspace["parameters"]["segment_chars"] = 20
+        snapshot = build_generation_snapshot(workspace)
+        workspace["instruction"] = "后来修改的提示"
+        self.assertEqual(snapshot["instruction"], "沉稳、克制")
+        self.assertGreater(len(snapshot["segments"]), 1)
+        self.assertTrue(all(item["style"] == "纪录片旁白" for item in snapshot["segments"]))
+        self.assertFalse(snapshot["target_duration_enabled"])
+
+    def test_output_snapshot_rebuilds_sqlite_index(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            database = Database(root / "app.db")
+            database.initialize()
+            try:
+                with patch.object(repository, "DB", database), patch.object(repository, "PROJECTS_DIR", root / "projects"):
+                    created = repository.create_project("快照恢复", "Chinese")
+                    audio = root / "projects" / created["id"] / "outputs" / "result.wav"
+                    audio.write_bytes(b"RIFF")
+                    metadata = {
+                        "path": str(audio), "filename": audio.name, "created_at": "2026-08-12T12:00:00",
+                        "duration": 1.0, "sample_rate": 24000, "channels": 1, "bit_depth": 24, "format": "WAV",
+                        "generation_snapshot": build_generation_snapshot(created["workspace"]),
+                    }
+                    record = repository.add_output(created["id"], "task-snapshot", metadata)
+                    with database.transaction() as connection:
+                        connection.execute("DELETE FROM outputs WHERE id=?", (record["id"],))
+                    repository.rebuild_project_index()
+                    recovered = repository.list_outputs(created["id"])[0]
+                    self.assertEqual(recovered["generation_snapshot"]["style"], "自然影视")
+                    repository.clear_outputs(created["id"], False)
+                    project_payload = json.loads((root / "projects" / created["id"] / "project.json").read_text(encoding="utf-8"))
+                    self.assertEqual(project_payload["output_snapshots"], {})
+            finally:
+                database.close()
 
     def test_standard_and_compatibility_baselines(self) -> None:
         self.assertEqual(PARAMETER_PRESETS["标准"]["segment_chars"], 400)

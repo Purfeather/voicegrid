@@ -56,6 +56,19 @@ export function OutputPanel({ workspace, tasks, history, generating, onWorkspace
         {current ? <div className={styles.currentOutput}>
           <div><span className={styles.outputIcon}><AudioLines size={14} /></span><div><strong title={current.filename}>{current.filename}</strong><span>{current.format} · {current.sample_rate / 1000} kHz · {current.bit_depth} bit · {formatDuration(current.duration)}</span></div></div>
           <audio controls src={current.artifact_url} />
+          {current.generation_snapshot && <details className={styles.generationDetails}>
+            <summary>生成设定</summary>
+            <dl>
+              <div><dt>风格</dt><dd>{current.generation_snapshot.style || "未命名"}</dd></div>
+              <div><dt>语言</dt><dd>{current.generation_snapshot.language || "自动"}</dd></div>
+              <div><dt>参数预设</dt><dd>{current.generation_snapshot.preset}</dd></div>
+              <div><dt>目标时长</dt><dd>{current.generation_snapshot.target_duration_enabled ? `${current.generation_snapshot.target_duration_seconds} 秒 · ${current.generation_snapshot.target_tokens} tokens` : "自动"}</dd></div>
+            </dl>
+            <strong>风格 / 情感提示</strong>
+            <p>{current.generation_snapshot.instruction || "未设置"}</p>
+            <strong>生成片段</strong>
+            <ol>{current.generation_snapshot.segments.map((segment) => <li key={segment.index}>{segment.text}</li>)}</ol>
+          </details>}
           <div className={styles.outputActions}><Button icon={<FolderOpen size={15} />} onClick={() => api.openArtifact(current.id)}>打开目录</Button><a className={styles.downloadButton} href={api.artifactUrl(current.id, true)} download><Download size={15} />下载</a></div>
         </div> : <EmptyState title="尚未生成音频" detail="生成完成后会先保存到历史，再自动出现在这里。" />}
       </Section>

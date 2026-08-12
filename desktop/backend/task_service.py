@@ -29,6 +29,31 @@ def duration_to_tokens(seconds: int | float) -> int:
     return max(1, int(float(seconds) * 12.5 + .5))
 
 
+def build_generation_snapshot(workspace: dict[str, Any]) -> dict[str, Any]:
+    parameters = dict(workspace.get("parameters") or {})
+    segments = split_text(str(workspace.get("text") or ""), int(parameters.get("segment_chars", 400)))
+    target_enabled = bool(workspace.get("target_duration_enabled")) and len(segments) == 1
+    target_seconds = int(workspace.get("target_duration_seconds", 10))
+    target_tokens = duration_to_tokens(target_seconds) if target_enabled else None
+    style = str(workspace.get("style") or "")
+    instruction = str(workspace.get("instruction") or "").strip()
+    return {
+        "style": style,
+        "instruction": instruction,
+        "language": str(workspace.get("language") or ""),
+        "text": str(workspace.get("text") or ""),
+        "segments": [
+            {"index": index + 1, "text": segment, "style": style, "instruction": instruction}
+            for index, segment in enumerate(segments)
+        ],
+        "preset": str(workspace.get("preset") or "标准"),
+        "parameters": parameters,
+        "target_duration_enabled": target_enabled,
+        "target_duration_seconds": target_seconds,
+        "target_tokens": target_tokens,
+    }
+
+
 class TaskService:
     def __init__(self) -> None:
         self.executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="moss-task")
@@ -39,7 +64,7 @@ class TaskService:
         get_project(project_id)
         task_id = uuid.uuid4().hex
         timestamp = now()
-        payload = {"project_id": project_id, "workspace": workspace}
+        payload = {"project_id": project_id, "workspace": workspace, "generation_snapshot": build_generation_snapshot(workspace)}
         task = {"id": task_id, "project_id": project_id, "status": "queued", "progress": 0.0, "message": "等待执行", "payload": payload, "created_at": timestamp, "updated_at": timestamp}
         insert_task(task)
         with self.lock:
@@ -76,6 +101,7 @@ class TaskService:
         payload = task_payload(task_id)
         project = get_project(payload["project_id"])
         workspace = payload["workspace"]
+        generation_snapshot = payload.get("generation_snapshot") or build_generation_snapshot(workspace)
 
         def progress(value: float, message: str) -> None:
             self._publish_task(task_id, progress=max(.01, min(.94, value * .94)), message=message)
@@ -112,7 +138,13 @@ class TaskService:
             from .output_engineering import render_output
 
             metadata = render_output(raw["source_path"], profile, project["name"], voice_name, index)
-            metadata.update({"voice": voice_name, "text": workspace["text"], "language": workspace.get("language", ""), "preset": workspace.get("preset", "标准")})
+            metadata.update({
+                "voice": voice_name,
+                "text": workspace["text"],
+                "language": workspace.get("language", ""),
+                "preset": workspace.get("preset", "标准"),
+                "generation_snapshot": generation_snapshot,
+            })
             record = add_output(payload["project_id"], task_id, metadata)
             completed = self._publish_task(task_id, status="completed", progress=1.0, message="生成完成", result_id=record["id"])
             EVENTS.publish("runtime.updated", ENGINE.describe())

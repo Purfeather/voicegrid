@@ -132,6 +132,20 @@ export interface OutputRecord {
   voice: string;
   text: string;
   artifact_url: string;
+  generation_snapshot?: GenerationSnapshot;
+}
+
+export interface GenerationSnapshot {
+  style: string;
+  instruction: string;
+  language: string;
+  text: string;
+  segments: Array<{ index: number; text: string; style: string; instruction: string }>;
+  preset: "标准" | "兼容";
+  parameters: SynthesisParameters;
+  target_duration_enabled: boolean;
+  target_duration_seconds: number;
+  target_tokens: number | null;
 }
 
 export type TaskStatus = "queued" | "running" | "completed" | "failed" | "cancelled" | "interrupted";
