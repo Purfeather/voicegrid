@@ -14,7 +14,7 @@
 }
 
 .dragRegion { min-width: 0; flex: 1; align-self: stretch; display: flex; align-items: center; gap: 10px; -webkit-app-region: drag; }
-.dragRegion img { width: 30px; height: 30px; flex: none; }
+.productMark { width: 30px; height: 30px; flex: none; color: var(--accent); }
 .noDrag { -webkit-app-region: no-drag; }
 .brand, .project { min-width: 0; display: grid; line-height: 1.15; }
 .brand strong { font-size: 13px; letter-spacing: .04em; }

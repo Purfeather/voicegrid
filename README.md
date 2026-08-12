@@ -1,6 +1,6 @@
-# 龙融影业 AI 配音台 2.0（开发测试版）
+# 声格 VoiceGrid 2.0（开发测试版）
 
-这是完全脱离 Gradio 的本地桌面配音工作站。界面使用 React + TypeScript，后端使用 FastAPI + SQLite，桌面窗口由 PyWebView2 承载。内部版本为 `2.0.0-dev`，尚未进入 EXE 或 ZIP 分发阶段。
+声格 VoiceGrid 是龙融影业的本地桌面配音工作站，作者为 Wang Xiaohan。界面使用 React + TypeScript，后端使用 FastAPI + SQLite，桌面窗口由 PyWebView2 承载。内部版本为 `2.0.0-dev`，尚未进入 EXE 或 ZIP 分发阶段。
 
 ## 启动
 

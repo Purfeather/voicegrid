@@ -20,7 +20,7 @@ from desktop.backend.server import app
 HOST = "127.0.0.1"
 PORT = 7862
 APP_URL = f"http://{HOST}:{PORT}/projects"
-ICON_PATH = ASSETS_DIR / "longrong.ico"
+ICON_PATH = ASSETS_DIR / "voicegrid.ico"
 STARTUP_LOG = LOGS_DIR / "desktop-startup-legacy.log"
 
 
@@ -111,11 +111,11 @@ class NativeHost:
 
         image = Image.open(ICON_PATH)
         menu = pystray.Menu(
-            pystray.MenuItem("打开 AI配音台", lambda *_: self.command("show"), default=True),
+            pystray.MenuItem("打开声格 VoiceGrid", lambda *_: self.command("show"), default=True),
             pystray.Menu.SEPARATOR,
             pystray.MenuItem("退出", lambda *_: self.command("exit")),
         )
-        self.tray = pystray.Icon("longrong-ai-voice-studio-v2-legacy", image, "龙融影业 AI配音台 2.0", menu)
+        self.tray = pystray.Icon("voicegrid-v2-legacy", image, "声格 VoiceGrid · 龙融影业", menu)
         threading.Thread(target=self.tray.run, name="system-tray", daemon=True).start()
 
     def shutdown(self) -> None:
@@ -143,7 +143,7 @@ class NativeHost:
         self.start_server()
         DESKTOP.register(self.command)
         self.window = webview.create_window(
-            "龙融影业 AI配音台 2.0（旧启动链）",
+            "声格 VoiceGrid 2.0（旧启动链）",
             APP_URL,
             js_api=NativeApi(self),
             width=1600,

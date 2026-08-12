@@ -97,7 +97,7 @@ async def lifespan(_: FastAPI):
     DB.close()
 
 
-app = FastAPI(title="龙融影业 AI 配音台", version="2.0.0-dev", lifespan=lifespan, docs_url=None, redoc_url=None)
+app = FastAPI(title="声格 VoiceGrid", version="2.0.0-dev", lifespan=lifespan, docs_url=None, redoc_url=None)
 
 
 def _translate_error(exc: Exception) -> HTTPException:
@@ -114,7 +114,7 @@ def _translate_error(exc: Exception) -> HTTPException:
 def bootstrap():
     return {
         "brand": "龙融影业",
-        "product": "AI 配音台",
+        "product": "声格 VoiceGrid",
         "version": "2.0.0-dev",
         "projects": list_projects(),
         "voices": list_voices(),
@@ -140,7 +140,7 @@ def health():
 def bootstrap_core():
     return {
         "brand": "龙融影业",
-        "product": "AI 配音台",
+        "product": "声格 VoiceGrid",
         "version": "2.0.0-dev",
         "languages": LANGUAGES,
         "model_capabilities": {
@@ -363,7 +363,7 @@ def artifact_open(asset_id: str):
 
 @app.get("/api/v2/brand/icon")
 def brand_icon():
-    return FileResponse(ASSETS_DIR / "longrong-icon.svg", media_type="image/svg+xml")
+    return FileResponse(ASSETS_DIR / "voicegrid-icon.svg", media_type="image/svg+xml")
 
 
 @app.get("/api/v2/desktop/status")

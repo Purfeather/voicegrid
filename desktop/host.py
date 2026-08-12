@@ -26,14 +26,14 @@ ASSETS_DIR = DESKTOP_DIR / "assets"
 LOGS_DIR = Path(os.environ.get("MOSS_TTS_LOGS_DIR", ROOT / "logs")).resolve()
 WEBVIEW_PROFILE = Path(os.environ.get("MOSS_TTS_WEBVIEW_PROFILE", ROOT / "data" / "cache" / "webview2")).resolve()
 SPLASH_PATH = DESKTOP_DIR / "splash.html"
-ICON_PATH = ASSETS_DIR / "longrong.ico"
+ICON_PATH = ASSETS_DIR / "voicegrid.ico"
 HOST = "127.0.0.1"
 PORT = int(os.environ.get("MOSS_TTS_PORT", "7862"))
 APP_URL = f"http://{HOST}:{PORT}/projects"
 STARTUP_LOG = LOGS_DIR / "desktop-startup.log"
 TRACE_PATH = Path(os.environ.get("MOSS_TTS_TRACE_PATH", LOGS_DIR / "startup-trace-latest.jsonl")).resolve()
 MUTEX_NAME = os.environ.get("MOSS_TTS_MUTEX_NAME", r"Local\LongRongAIStudioV2")
-WINDOW_TITLE = os.environ.get("MOSS_TTS_WINDOW_TITLE", "龙融影业 AI配音台 2.0")
+WINDOW_TITLE = os.environ.get("MOSS_TTS_WINDOW_TITLE", "声格 VoiceGrid 2.0")
 STARTED_AT = time.perf_counter()
 
 
@@ -161,12 +161,19 @@ class NativeSplash:
             shell.pack(fill="both", expand=True)
             brand = tk.Frame(shell, bg="#090a0b")
             brand.pack(fill="x")
-            mark = tk.Label(brand, text="LR", bg="#181b1e", fg="#f3ff00", width=4, height=2, font=("Segoe UI", 10, "bold"))
+            try:
+                from PIL import Image, ImageTk
+                mark_image = Image.open(ASSETS_DIR / "voicegrid-icon-white.png").resize((40, 40), Image.Resampling.LANCZOS)
+                self._brand_icon = ImageTk.PhotoImage(mark_image)
+                mark = tk.Label(brand, image=self._brand_icon, bg="#090a0b")
+            except Exception:
+                mark = tk.Label(brand, text="VG", bg="#181b1e", fg="#f3ff00", width=4, height=2, font=("Segoe UI", 10, "bold"))
             mark.pack(side="left")
             brand_copy = tk.Frame(brand, bg="#090a0b")
             brand_copy.pack(side="left", padx=12)
-            tk.Label(brand_copy, text="龙融影业", bg="#090a0b", fg="#f4f6f8", font=("Microsoft YaHei UI", 12, "bold")).pack(anchor="w")
-            tk.Label(brand_copy, text="AI 配音台 2.0", bg="#090a0b", fg="#9aa2ad", font=("Microsoft YaHei UI", 9)).pack(anchor="w", pady=(3, 0))
+            tk.Label(brand_copy, text="声格 VoiceGrid", bg="#090a0b", fg="#f4f6f8", font=("Microsoft YaHei UI", 12, "bold")).pack(anchor="w")
+            tk.Label(brand_copy, text="龙融影业 · 2.0", bg="#090a0b", fg="#9aa2ad", font=("Microsoft YaHei UI", 9)).pack(anchor="w", pady=(3, 0))
+            tk.Label(brand_copy, text="作者：Wang Xiaohan", bg="#090a0b", fg="#9aa2ad", font=("Segoe UI", 8)).pack(anchor="w", pady=(3, 0))
 
             content = tk.Frame(shell, bg="#090a0b")
             content.pack(fill="both", expand=True, pady=(34, 0))
@@ -752,11 +759,11 @@ class NativeHost:
 
             image = Image.open(ICON_PATH)
             menu = pystray.Menu(
-                pystray.MenuItem("打开 AI配音台", lambda *_: self.command("show"), default=True),
+                pystray.MenuItem("打开声格 VoiceGrid", lambda *_: self.command("show"), default=True),
                 pystray.Menu.SEPARATOR,
                 pystray.MenuItem("退出", lambda *_: self.command("exit")),
             )
-            self.tray = pystray.Icon("longrong-ai-voice-studio-v2", image, "龙融影业 AI配音台 2.0", menu)
+            self.tray = pystray.Icon("voicegrid-v2", image, "声格 VoiceGrid · 龙融影业", menu)
             if TRACE is not None:
                 TRACE.record("tray_created", "ready", "系统托盘已创建")
             self.tray.run()
@@ -1024,7 +1031,7 @@ if __name__ == "__main__":
             ctypes.windll.user32.MessageBoxW(
                 0,
                 f"桌面版启动失败：\n\n{exc}\n\n详细信息：\n{STARTUP_LOG}",
-                "龙融影业 AI配音台",
+                "声格 VoiceGrid",
                 0x10,
             )
         except Exception:

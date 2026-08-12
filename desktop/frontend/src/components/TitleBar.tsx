@@ -4,6 +4,7 @@ import type { HardwareMetrics, RuntimeSnapshot, ThemeId } from "../types";
 import { windowAction } from "../services/native";
 import { Badge, Button, IconButton } from "./UI";
 import styles from "./titlebar.module.css";
+import { VoiceGridMark } from "./VoiceGridMark";
 
 interface Props {
   projectName?: string;
@@ -56,8 +57,8 @@ export function TitleBar({ projectName, saveState, runtime, metrics, theme, onTh
     <header className={styles.titlebar}>
       {onBack && <IconButton label="返回项目中心" className={styles.noDrag} onClick={onBack}><ArrowLeft size={18} /></IconButton>}
       <div className={`${styles.dragRegion} pywebview-drag-region`} onDoubleClick={() => windowAction("maximize")}>
-        <img src="/api/v2/brand/icon" alt="龙融影业" />
-        <div className={styles.brand}><strong>龙融影业</strong><span>AI 配音台 2.0</span></div>
+        <VoiceGridMark className={styles.productMark} />
+        <div className={styles.brand}><strong>声格 VoiceGrid</strong><span>龙融影业 · 2.0</span></div>
         {projectName && <><i className={styles.divider} /><div className={styles.project}><strong>{projectName}</strong><span>{saveState || "自动保存已开启"}</span></div></>}
       </div>
       <div className={styles.tools}>
