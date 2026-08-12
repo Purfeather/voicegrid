@@ -369,6 +369,18 @@ class ModelContractTests(unittest.TestCase):
             (root / "empty.safetensors").write_bytes(b"")
             self.assertFalse(_model_complete(root, "voice_design"))
 
+    def test_ready_module_descriptor_does_not_report_manual_paths_as_missing(self) -> None:
+        service = ModuleService()
+        service.states["voice_design"] = {
+            "model_ready": True,
+            "runtime_ready": True,
+            "missing": [],
+            "status": "ready",
+        }
+        descriptor = service.describe("voice_design")
+        self.assertTrue(descriptor["installed"])
+        self.assertEqual(descriptor["missing"], [])
+
     def test_rebuild_ignores_output_outside_project_resource_root(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

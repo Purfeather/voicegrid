@@ -339,7 +339,7 @@ class ModuleService:
         else:
             model_ready = bool(state.get("model_ready", False))
             runtime_ready = bool(state.get("runtime_ready", False))
-            missing = list(state.get("missing") or self._manual_paths(module_id))
+            missing = list(state["missing"]) if "missing" in state else self._manual_paths(module_id)
         installing = bool(self.install_threads.get(module_id) and self.install_threads[module_id].is_alive())
         installed = model_ready and runtime_ready
         status = "installing" if installing else "ready" if installed else "repair_required" if model_ready or runtime_ready else "not_installed"
