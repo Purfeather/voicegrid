@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from copy import deepcopy
-from pathlib import Path
 from typing import Any
 
 
@@ -50,7 +49,7 @@ BUILT_IN_STYLES = [
 ]
 
 
-def default_workspace(language: str, output_directory: Path) -> dict[str, Any]:
+def default_workspace(language: str) -> dict[str, Any]:
     return {
         "text": WELCOME_TEXT,
         "language": language,
@@ -68,8 +67,7 @@ def default_workspace(language: str, output_directory: Path) -> dict[str, Any]:
             "format": "WAV",
             "sample_rate": 48000,
             "bit_depth": 24,
-            "channels": 1,
+            "channels": 2,
             "loudness_lufs": -23.0,
-            "output_directory": str(output_directory.resolve()),
         },
     }

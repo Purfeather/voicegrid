@@ -52,19 +52,19 @@ def _normalize_loudness(audio: np.ndarray, sample_rate: int, target_lufs: float 
     return normalized.astype(np.float32), measured
 
 
-def render_output(source_path: str, profile: dict[str, Any], project_name: str, voice_name: str, index: int) -> dict[str, Any]:
+def render_output(source_path: str, profile: dict[str, Any], output_directory: Path, project_name: str, voice_name: str, index: int) -> dict[str, Any]:
     source = Path(source_path).resolve()
     if RAW_OUTPUTS_DIR.resolve() not in source.parents:
         raise ValueError("模型临时输出不在受控目录内。")
     audio, source_rate = sf.read(str(source), always_2d=True, dtype="float32")
     target_rate = int(profile.get("sample_rate", 48000))
-    target_channels = int(profile.get("channels", 1))
+    target_channels = int(profile.get("channels", 2))
     processed = _channels(_resample(audio, source_rate, target_rate), target_channels)
     processed, measured_lufs = _normalize_loudness(processed, target_rate, profile.get("loudness_lufs"))
 
     output_format = str(profile.get("format", "WAV")).upper()
     extension = ".flac" if output_format == "FLAC" else ".wav"
-    output_directory = Path(profile["output_directory"]).expanduser().resolve()
+    output_directory = output_directory.resolve()
     output_directory.mkdir(parents=True, exist_ok=True)
     filename = "_".join((
         _safe_filename(project_name),

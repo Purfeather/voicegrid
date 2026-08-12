@@ -40,6 +40,7 @@ from .repository import (
     project_files_exist,
     project_index_count,
     project_index_status,
+    project_output_directory,
     reconcile_project_index,
     rebuild_project_index,
     save_project,
@@ -234,6 +235,16 @@ def project_activity_clear(project_id: str, delete_files: bool = False, module: 
         result = clear_project_activity(project_id, delete_files, module)
         EVENTS.publish("activity.cleared", {"project_id": project_id, "module": module, **result})
         return result
+    except Exception as exc:
+        raise _translate_error(exc) from exc
+
+
+@app.post("/api/v2/projects/{project_id}/outputs/{module}/open", status_code=204)
+def project_output_open(project_id: str, module: str):
+    try:
+        get_project(project_id)
+        folder = project_output_directory(project_id, module, create=True)
+        os.startfile(str(folder))
     except Exception as exc:
         raise _translate_error(exc) from exc
 

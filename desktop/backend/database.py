@@ -65,12 +65,6 @@ CREATE TABLE IF NOT EXISTS outputs (
     created_at TEXT NOT NULL,
     metadata_json TEXT NOT NULL
 );
-CREATE TABLE IF NOT EXISTS output_roots (
-    project_id TEXT NOT NULL,
-    path TEXT NOT NULL,
-    created_at TEXT NOT NULL,
-    PRIMARY KEY(project_id, path)
-);
 CREATE INDEX IF NOT EXISTS idx_tasks_project_created ON tasks(project_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_outputs_project_created ON outputs(project_id, created_at DESC);
 """
@@ -138,6 +132,9 @@ class Database:
             changed = True
         if "kind" not in output_columns:
             self.connection.execute("ALTER TABLE outputs ADD COLUMN kind TEXT NOT NULL DEFAULT 'speech_output'")
+            changed = True
+        if self.connection.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='output_roots'").fetchone():
+            self.connection.execute("DROP TABLE output_roots")
             changed = True
         self.connection.execute("CREATE INDEX IF NOT EXISTS idx_tasks_project_module_created ON tasks(project_id, module, created_at DESC)")
         self.connection.execute("CREATE INDEX IF NOT EXISTS idx_outputs_project_module_created ON outputs(project_id, module, created_at DESC)")

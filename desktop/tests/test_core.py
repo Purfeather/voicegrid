@@ -171,7 +171,7 @@ class RepositoryTests(unittest.TestCase):
             try:
                 with patch.object(repository, "DB", database), patch.object(repository, "PROJECTS_DIR", root / "projects"):
                     created = repository.create_project("活动清理", "Chinese")
-                    audio = root / "kept.wav"
+                    audio = repository.project_output_directory(created["id"], "speech") / "kept.wav"
                     audio.write_bytes(b"RIFF")
                     with database.transaction() as connection:
                         for task_id, status in (("task-active", "running"), ("task-finished", "failed")):
@@ -223,13 +223,17 @@ class AudioOutputTests(unittest.TestCase):
             raw_dir.mkdir()
             source = raw_dir / "source.wav"
             sf.write(source, sine(24000, 1.0), 24000, subtype="PCM_24")
-            profile = {"format": "WAV", "sample_rate": 48000, "bit_depth": 24, "channels": 1, "loudness_lufs": -23, "filename_template": "BROKEN_{missing}", "output_directory": str(root / "outputs")}
+            profile = {"format": "WAV", "sample_rate": 48000, "bit_depth": 24, "channels": 2, "loudness_lufs": -23, "filename_template": "BROKEN_{missing}", "output_directory": str(root / "ignored")}
+            output_directory = root / "outputs"
             with patch.object(output_engineering, "RAW_OUTPUTS_DIR", raw_dir):
-                metadata = output_engineering.render_output(str(source), profile, "工程测试", "音色A", 1)
+                metadata = output_engineering.render_output(str(source), profile, output_directory, "工程测试", "音色A", 1)
             target = Path(metadata["path"])
             self.assertTrue(target.is_file())
             self.assertTrue(target.with_suffix(".wav.json").is_file())
             self.assertEqual(metadata["sample_rate"], 48000)
+            self.assertEqual(metadata["channels"], 2)
+            self.assertEqual(sf.info(target).channels, 2)
+            self.assertEqual(target.parent.resolve(), output_directory.resolve())
             self.assertRegex(target.name, r"^工程测试_音色A_001_\d{8}_\d{6}\.wav$")
             self.assertNotIn("BROKEN", target.name)
 
@@ -477,19 +481,15 @@ class ModelContractTests(unittest.TestCase):
             finally:
                 database.close()
 
-    def test_rebuild_accepts_registered_external_delivery_root(self) -> None:
+    def test_rebuild_accepts_only_module_resource_root(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             database = Database(root / "app.db")
             database.initialize()
             try:
                 with patch.object(repository, "DB", database), patch.object(repository, "PROJECTS_DIR", root / "projects"):
-                    created = repository.create_project("交付目录", "Chinese")
-                    delivery = root / "delivery"
-                    delivery.mkdir()
-                    workspace = WorkspaceDraft.model_validate(created["workspace"])
-                    workspace.output_profile.output_directory = str(delivery)
-                    repository.save_project(created["id"], created["revision"], workspace)
+                    created = repository.create_project("固定交付目录", "Chinese")
+                    delivery = repository.project_output_directory(created["id"], "speech")
                     audio = delivery / "result.wav"
                     audio.write_bytes(b"RIFF")
                     project_file = root / "projects" / created["id"] / "project.json"
@@ -500,6 +500,23 @@ class ModelContractTests(unittest.TestCase):
                     project_file.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
                     repository.rebuild_project_index()
                     self.assertIsNotNone(database.one("SELECT id FROM outputs WHERE id='trusted'"))
+            finally:
+                database.close()
+
+    def test_new_project_creates_fixed_module_directories_and_defaults_to_stereo(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            database = Database(root / "app.db")
+            database.initialize()
+            try:
+                with patch.object(repository, "DB", database), patch.object(repository, "PROJECTS_DIR", root / "projects"):
+                    created = repository.create_project("固定目录", "Chinese")
+                    self.assertEqual(created["workspace"]["output_profile"]["channels"], 2)
+                    self.assertNotIn("output_directory", created["workspace"]["output_profile"])
+                    for module in ("speech", "voice_design", "sound_effect"):
+                        self.assertTrue(repository.project_output_directory(created["id"], module).is_dir())
+                    with self.assertRaises(ValueError):
+                        repository.project_output_directory(created["id"], "unknown", create=True)
             finally:
                 database.close()
 
@@ -524,7 +541,7 @@ class ModelContractTests(unittest.TestCase):
         )
 
     def test_legacy_duration_migrates_to_automatic_speed(self) -> None:
-        payload = repository.default_workspace("Chinese", Path("outputs"))
+        payload = repository.default_workspace("Chinese")
         payload.pop("manual_speed_enabled")
         payload.pop("manual_speed_level")
         payload["target_duration_enabled"] = True
@@ -537,7 +554,7 @@ class ModelContractTests(unittest.TestCase):
         self.assertNotIn("target_duration_seconds", workspace.model_dump())
 
     def test_generation_snapshot_only_freezes_style_instruction_and_reference(self) -> None:
-        workspace = repository.default_workspace("Chinese", Path("outputs"))
+        workspace = repository.default_workspace("Chinese")
         workspace["style"] = "纪录片旁白"
         workspace["instruction"] = "沉稳、克制"
         snapshot = build_generation_snapshot(workspace)
@@ -556,7 +573,7 @@ class ModelContractTests(unittest.TestCase):
             try:
                 with patch.object(repository, "DB", database), patch.object(repository, "PROJECTS_DIR", root / "projects"):
                     created = repository.create_project("快照恢复", "Chinese")
-                    audio = root / "projects" / created["id"] / "outputs" / "result.wav"
+                    audio = repository.project_output_directory(created["id"], "speech") / "result.wav"
                     audio.write_bytes(b"RIFF")
                     metadata = {
                         "path": str(audio), "filename": audio.name, "created_at": "2026-08-12T12:00:00",

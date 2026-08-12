@@ -15,7 +15,6 @@ from app.model_engine import ENGINE, PAUSE_MARKER_PATTERN, TaskCancelled, split_
 from .audio import prepare_trimmed_reference
 from .events import EVENTS
 from .module_service import MODULE_SERVICE
-from .paths import PROJECTS_DIR
 from .repository import (
     add_output,
     cancel_requested,
@@ -26,6 +25,7 @@ from .repository import (
     insert_task,
     list_outputs,
     now,
+    project_output_directory,
     task_payload,
     update_task,
     voice_path,
@@ -226,13 +226,11 @@ class TaskService:
             temporary_raw = Path(raw["source_path"])
             self._publish_task(task_id, progress=.96, message="正在执行输出工程")
             profile = dict(workspace["output_profile"])
-            if not profile.get("output_directory"):
-                profile["output_directory"] = project["workspace"]["output_profile"]["output_directory"]
             index = len(list_outputs(payload["project_id"], "speech")) + 1
             voice_name = project.get("voice") or "默认音色"
             from .output_engineering import render_output
-
-            metadata = render_output(raw["source_path"], profile, project["name"], voice_name, index)
+            output_directory = project_output_directory(payload["project_id"], "speech", create=True)
+            metadata = render_output(raw["source_path"], profile, output_directory, project["name"], voice_name, index)
             metadata.update({
                 "voice": voice_name,
                 "text": workspace["text"],
@@ -253,8 +251,7 @@ class TaskService:
         project = get_project(payload["project_id"])
         workspace = payload["workspace"]
         generation_snapshot = payload.get("generation_snapshot") or build_voice_design_snapshot(workspace)
-        output_dir = PROJECTS_DIR / payload["project_id"] / "outputs" / "voice-design"
-        output_dir.mkdir(parents=True, exist_ok=True)
+        output_dir = project_output_directory(payload["project_id"], "voice_design", create=True)
         index = _next_output_index(output_dir, len(list_outputs(payload["project_id"], "voice_design")) + 1)
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         project_name = _safe_filename_component(project["name"], "未命名项目")

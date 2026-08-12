@@ -45,8 +45,22 @@ def _is_within(path: Path, root: Path) -> bool:
     return resolved != resolved_root and resolved_root in resolved.parents
 
 
-def _trusted_output_roots(project_id: str) -> list[Path]:
-    return [Path(row["path"]).resolve() for row in DB.query("SELECT path FROM output_roots WHERE project_id=?", (project_id,))]
+_MODULE_OUTPUT_DIRECTORIES: dict[str, str] = {
+    "speech": "speech",
+    "voice_design": "voice-design",
+    "sound_effect": "sound-effects",
+}
+
+
+def project_output_directory(project_id: str, module: str, create: bool = False) -> Path:
+    _project_file(project_id)
+    directory_name = _MODULE_OUTPUT_DIRECTORIES.get(module)
+    if directory_name is None:
+        raise ValueError("模块编号无效。")
+    directory = (PROJECTS_DIR / project_id / "outputs" / directory_name).resolve()
+    if create:
+        directory.mkdir(parents=True, exist_ok=True)
+    return directory
 
 
 def _rebuildable_output_path(project_id: str, module: str, value: str) -> Path | None:
@@ -54,15 +68,10 @@ def _rebuildable_output_path(project_id: str, module: str, value: str) -> Path |
         candidate = Path(value).resolve()
         if candidate.suffix.lower() not in _OUTPUT_SUFFIXES or not candidate.is_file():
             return None
-        output_root = (PROJECTS_DIR / project_id / "outputs").resolve()
-        if module == "speech" and not _is_within(candidate, output_root):
-            if not any(_is_within(candidate, root) for root in _trusted_output_roots(project_id)):
-                return None
-        elif module != "speech" and not _is_within(candidate, output_root):
+        if module not in _MODULE_OUTPUT_DIRECTORIES:
             return None
-        if module == "voice_design" and not _is_within(candidate, output_root / "voice-design"):
-            return None
-        if module == "sound_effect" and not _is_within(candidate, output_root / "sound-effects"):
+        output_root = project_output_directory(project_id, module)
+        if not _is_within(candidate, output_root):
             return None
         return candidate
     except (OSError, RuntimeError, ValueError):
@@ -75,10 +84,7 @@ def _deletable_output_path(project_id: str, value: str) -> Path | None:
         if candidate.suffix.lower() not in _OUTPUT_SUFFIXES or not candidate.is_file():
             return None
         project_output_root = (PROJECTS_DIR / project_id / "outputs").resolve()
-        trusted = _is_within(candidate, project_output_root) or any(
-            _is_within(candidate, root) for root in _trusted_output_roots(project_id)
-        )
-        return candidate if trusted else None
+        return candidate if _is_within(candidate, project_output_root) else None
     except (OSError, RuntimeError, ValueError):
         return None
 
@@ -190,13 +196,6 @@ def rebuild_project_index(mode: str = "rebuild") -> int:
                     recovery_available=excluded.recovery_available,voice_id=excluded.voice_id""",
                     records,
                 )
-                connection.executemany(
-                    "INSERT OR IGNORE INTO output_roots(project_id,path,created_at) VALUES(?,?,?)",
-                    [
-                        (record[0], str((PROJECTS_DIR / str(record[0]) / "outputs").resolve()), str(record[4]))
-                        for record in records
-                    ],
-                )
                 if output_records:
                     connection.executemany(
                         """INSERT INTO outputs(id,project_id,module,kind,task_id,path,filename,created_at,metadata_json)
@@ -219,8 +218,8 @@ def reconcile_project_index() -> int:
 def create_project(name: str, language: str) -> dict[str, Any]:
     project_id = uuid.uuid4().hex
     project_root = PROJECTS_DIR / project_id
-    output_directory = project_root / "outputs"
-    output_directory.mkdir(parents=True, exist_ok=True)
+    for module in _MODULE_OUTPUT_DIRECTORIES:
+        project_output_directory(project_id, module, create=True)
     timestamp = now()
     payload = {
         "schema_version": 4,
@@ -232,7 +231,7 @@ def create_project(name: str, language: str) -> dict[str, Any]:
         "session_active": True,
         "recovery_available": False,
         "workspaces": ProjectWorkspaces(
-            speech=WorkspaceDraft.model_validate(default_workspace(language, output_directory)),
+            speech=WorkspaceDraft.model_validate(default_workspace(language)),
         ).model_dump(mode="json"),
         "output_snapshots": {},
     }
@@ -242,10 +241,6 @@ def create_project(name: str, language: str) -> dict[str, Any]:
         connection.execute(
             "INSERT INTO projects(id,name,path,created_at,updated_at,revision,session_active,recovery_available,voice_id) VALUES(?,?,?,?,?,?,?,?,?)",
             (project_id, payload["name"], str(path), timestamp, timestamp, 1, 1, 0, None),
-        )
-        connection.execute(
-            "INSERT INTO output_roots(project_id,path,created_at) VALUES(?,?,?)",
-            (project_id, str(output_directory.resolve()), timestamp),
         )
     return project_detail(payload)
 
@@ -329,15 +324,6 @@ def save_project(
         voice_id = workspace_payload.get("voice_id") or workspace_payload.get("reference_id")
         with DB.transaction() as connection:
             connection.execute("UPDATE projects SET updated_at=?,revision=?,session_active=1,recovery_available=0,voice_id=? WHERE id=?", (payload["updated_at"], payload["revision"], voice_id, project_id))
-            if module == "speech":
-                output_value = str(workspace_payload.get("output_profile", {}).get("output_directory") or "").strip()
-                if output_value:
-                    output_root = Path(output_value).expanduser().resolve()
-                    output_root.mkdir(parents=True, exist_ok=True)
-                    connection.execute(
-                        "INSERT OR IGNORE INTO output_roots(project_id,path,created_at) VALUES(?,?,?)",
-                        (project_id, str(output_root), payload["updated_at"]),
-                    )
     return project_detail(payload)
 
 
@@ -369,7 +355,6 @@ def delete_project(project_id: str) -> None:
         with DB.transaction() as connection:
             connection.execute("DELETE FROM outputs WHERE project_id=?", (project_id,))
             connection.execute("DELETE FROM tasks WHERE project_id=?", (project_id,))
-            connection.execute("DELETE FROM output_roots WHERE project_id=?", (project_id,))
             connection.execute("DELETE FROM projects WHERE id=?", (project_id,))
         shutil.rmtree(project_root)
     _set_index_state(indexed=project_index_count())
@@ -629,7 +614,7 @@ def add_output(project_id: str, task_id: str, metadata: dict[str, Any], module: 
     output_path = Path(str(metadata["path"])).resolve()
     if output_path.suffix.lower() not in _OUTPUT_SUFFIXES or not output_path.is_file():
         raise ValueError("输出音频不存在或格式不受支持。")
-    if module in {"voice_design", "sound_effect"} and _rebuildable_output_path(project_id, module, str(output_path)) is None:
+    if _rebuildable_output_path(project_id, module, str(output_path)) is None:
         raise ValueError("模块输出不在当前项目的受控资源目录内。")
     output_id = uuid.uuid4().hex
     record = {**metadata, "path": str(output_path), "id": output_id, "project_id": project_id, "task_id": task_id, "module": module, "kind": kind, "artifact_url": f"/api/v2/artifacts/{output_id}"}

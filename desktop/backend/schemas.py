@@ -20,9 +20,8 @@ class OutputProfile(BaseModel):
     format: Literal["WAV", "FLAC"] = "WAV"
     sample_rate: Literal[24000, 44100, 48000] = 48000
     bit_depth: Literal[16, 24, 32] = 24
-    channels: Literal[1, 2] = 1
+    channels: Literal[1, 2] = 2
     loudness_lufs: float | None = Field(default=-23.0, ge=-40, le=-6)
-    output_directory: str = ""
 
 
 class WorkspaceDraft(BaseModel):
