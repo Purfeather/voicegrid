@@ -1,16 +1,14 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { AudioLines, Ban, CircleAlert, Download, FileAudio2, FolderOpen, LoaderCircle, RotateCcw, Settings2, Trash2, WandSparkles, X } from "lucide-react";
+import { AudioLines, Ban, CircleAlert, Download, FileAudio2, FolderOpen, LoaderCircle, RotateCcw, Settings2, Trash2, X } from "lucide-react";
 import type { GenerationSnapshot, OutputProfile, OutputRecord, TaskRecord, WorkspaceDraft } from "../../types";
 import { api } from "../../services/api";
-import { selectFolder } from "../../services/native";
-import { Badge, Button, EmptyState, Field, IconButton, Progress, Section, Select, TextInput } from "../../components/UI";
+import { Badge, Button, EmptyState, Field, IconButton, Progress, Select } from "../../components/UI";
 import { formatDuration } from "../../utils/text";
 import styles from "./workbench.module.css";
-import { ModuleActivityActions, ModuleActivityTimeline, ModuleCurrentOutput, ModuleGenerateCard } from "../modules/ModuleWorkbenchShell";
+import { ModuleActivityActions, ModuleActivityTimeline, ModuleCurrentOutput, ModuleGenerateButton, ModuleGenerateCard } from "../modules/ModuleWorkbenchShell";
 
 interface Props {
-  projectId: string;
   workspace: WorkspaceDraft;
   tasks: TaskRecord[];
   history: OutputRecord[];
@@ -25,14 +23,12 @@ interface Props {
   locked?: boolean;
 }
 
-type ActivityFilter = "all" | "active" | "completed" | "exception";
 type ActivityItem =
   | { kind: "task"; id: string; createdAt: string; task: TaskRecord }
   | { kind: "output"; id: string; createdAt: string; output: OutputRecord };
 
 export function OutputPanel({ workspace, tasks, history, generating, onWorkspace, onGenerate, onCancel, onRemoveTask, onClearActivity, onOpenOutputFolder, onReuse, locked = false }: Props) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [filter, setFilter] = useState<ActivityFilter>("all");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [popoverPosition, setPopoverPosition] = useState({ top: 0, left: 0, width: 380 });
   const settingsButton = useRef<HTMLDivElement>(null);
@@ -93,27 +89,15 @@ export function OutputPanel({ workspace, tasks, history, generating, onWorkspace
     });
   }, [history, tasks]);
 
-  const filteredActivity = activity.filter((item) => {
-    if (filter === "all") return true;
-    if (filter === "completed") return item.kind === "output";
-    if (filter === "active") return item.kind === "task" && (item.task.status === "queued" || item.task.status === "running");
-    return item.kind === "task" && ["failed", "cancelled", "interrupted"].includes(item.task.status);
-  });
-
   function updateProfile(patch: Partial<OutputProfile>) {
     onWorkspace({ output_profile: { ...profile, ...patch } });
-  }
-
-  async function chooseOutputDirectory() {
-    const result = await selectFolder(profile.output_directory);
-    if (result) updateProfile({ output_directory: result });
   }
 
   return (
     <div className={`${styles.columnScroll} ${styles.outputColumn} ${locked ? styles.previewLocked : ""}`} aria-disabled={locked} inert={locked}>
       <ModuleGenerateCard actions={<Badge tone={generating ? "accent" : "neutral"}>{generating ? "生成中" : "准备就绪"}</Badge>}>
         <div className={styles.sectionBody}>
-          <Button className={styles.generateButton} variant="primary" icon={<WandSparkles size={17} />} busy={generating} disabled={!workspace.text.trim() || generating} onClick={onGenerate}>{generating ? "正在生成音频" : "开始生成"}</Button>
+          <ModuleGenerateButton module="speech" className={styles.generateButton} disabled={!workspace.text.trim() || generating} onClick={onGenerate} />
           <div className={styles.outputGrid}>
             <Field label="格式" compact><Select value={profile.format} onChange={(event) => updateProfile({ format: event.target.value as "WAV" | "FLAC" })}><option>WAV</option><option>FLAC</option></Select></Field>
             <Field label="采样率" compact><Select value={profile.sample_rate} onChange={(event) => updateProfile({ sample_rate: Number(event.target.value) as OutputProfile["sample_rate"] })}><option value={24000}>24 kHz</option><option value={44100}>44.1 kHz</option><option value={48000}>48 kHz</option></Select></Field>
@@ -121,7 +105,6 @@ export function OutputPanel({ workspace, tasks, history, generating, onWorkspace
             <Field label="声道" compact><Select value={profile.channels} onChange={(event) => updateProfile({ channels: Number(event.target.value) as 1 | 2 })}><option value={1}>单声道</option><option value={2}>立体声</option></Select></Field>
           </div>
           <Field label="目标响度" compact><div className={styles.rangeWithValue}><input type="range" min={-30} max={-12} step={1} value={profile.loudness_lufs ?? -23} onChange={(event) => updateProfile({ loudness_lufs: Number(event.target.value) })} /><strong>{profile.loudness_lufs ?? "关闭"} LUFS</strong></div></Field>
-          <Field label="输出目录" compact><div className={styles.pathField}><TextInput readOnly value={profile.output_directory} title={profile.output_directory} /><IconButton label="选择输出目录" onClick={chooseOutputDirectory}><FolderOpen size={16} /></IconButton></div></Field>
         </div>
       </ModuleGenerateCard>
 
@@ -150,13 +133,10 @@ export function OutputPanel({ workspace, tasks, history, generating, onWorkspace
 
       <ModuleActivityTimeline
         className={styles.activitySection}
-        actions={<ModuleActivityActions onClear={onClearActivity} onOpenFolder={onOpenOutputFolder} clearDisabled={!tasks.length && !history.length} folderDisabled={!profile.output_directory} />}
+        actions={<ModuleActivityActions onClear={onClearActivity} onOpenFolder={onOpenOutputFolder} clearDisabled={!tasks.length && !history.length} />}
       >
-        <div className={styles.activityFilters} role="group" aria-label="活动记录筛选">
-          {([['all', '全部'], ['active', '进行中'], ['completed', '已完成'], ['exception', '异常']] as Array<[ActivityFilter, string]>).map(([value, label]) => <button key={value} className={filter === value ? styles.activityFilterActive : ""} onClick={() => setFilter(value)}>{label}</button>)}
-        </div>
         <div className={styles.activityList}>
-          {filteredActivity.length ? filteredActivity.map((item) => item.kind === "output" ? (
+          {activity.length ? activity.map((item) => item.kind === "output" ? (
             <button key={`output-${item.id}`} className={`${styles.activityOutput} ${current?.id === item.output.id ? styles.historyActive : ""}`} onClick={() => setSelectedId(item.output.id)}>
               <span className={styles.historyAsset}><FileAudio2 size={14} /></span>
               <span><strong>{item.output.filename}</strong><small>{new Date(item.output.created_at).toLocaleString("zh-CN")} · {formatDuration(item.output.duration)}</small></span>
@@ -169,7 +149,7 @@ export function OutputPanel({ workspace, tasks, history, generating, onWorkspace
               {item.task.error && <p>{item.task.error}</p>}
               {(item.task.status === "running" || item.task.status === "queued") && <Button variant="ghost" icon={<Ban size={14} />} onClick={() => onCancel(item.task.id)}>安全停止</Button>}
             </article>
-          )) : <EmptyState title="没有匹配的活动" detail="生成任务和已保存的输出会统一显示在这里。" />}
+          )) : <EmptyState title="暂无任务与输出" detail="生成任务和已保存的输出会统一显示在这里。" />}
         </div>
       </ModuleActivityTimeline>
     </div>

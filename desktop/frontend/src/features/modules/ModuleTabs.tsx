@@ -1,13 +1,7 @@
-import { AudioLines, MicVocal, Sparkles } from "lucide-react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
-import type { ModuleDescriptor, ModuleId } from "../../types";
+import type { ModuleDescriptor } from "../../types";
+import { MODULE_ORDER, MODULE_VISUALS } from "./moduleVisuals";
 import styles from "./modules.module.css";
-
-const TABS: Array<{ id: ModuleId; path: string; icon: typeof AudioLines }> = [
-  { id: "speech", path: "speech", icon: MicVocal },
-  { id: "voice_design", path: "voice-design", icon: Sparkles },
-  { id: "sound_effect", path: "sound-effect", icon: AudioLines },
-];
 
 export function ModuleTabs({ modules, beforeNavigate }: { modules: ModuleDescriptor[]; beforeNavigate?: () => Promise<void> }) {
   const { projectId = "" } = useParams();
@@ -15,7 +9,8 @@ export function ModuleTabs({ modules, beforeNavigate }: { modules: ModuleDescrip
   const navigate = useNavigate();
   return (
     <nav className={styles.moduleTabs} aria-label="项目制作模块">
-      {TABS.map(({ id, path, icon: Icon }) => {
+      {MODULE_ORDER.map((id) => {
+        const { path, fallbackName, icon: Icon } = MODULE_VISUALS[id];
         const descriptor = modules.find((item) => item.id === id);
         const active = location.pathname.endsWith(`/${path}`);
         return (
@@ -33,7 +28,7 @@ export function ModuleTabs({ modules, beforeNavigate }: { modules: ModuleDescrip
             }}
           >
             <Icon size={15} />
-            <span>{descriptor?.name || (id === "speech" ? "语音合成" : id === "voice_design" ? "音色设计" : "音效生成")}</span>
+            <span>{descriptor?.name || fallbackName}</span>
             <i className={descriptor?.installed ? styles.installedDot : styles.optionalDot} />
           </button>
         );

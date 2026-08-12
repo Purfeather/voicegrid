@@ -1,6 +1,8 @@
 import type { ReactNode } from "react";
 import { BrushCleaning, ChevronDown, ChevronUp, FolderOpen, SlidersHorizontal } from "lucide-react";
-import { IconButton, Section } from "../../components/UI";
+import type { ModuleId } from "../../types";
+import { Button, IconButton, Section } from "../../components/UI";
+import { MODULE_VISUALS } from "./moduleVisuals";
 import styles from "./moduleWorkbenchShell.module.css";
 
 export function ModuleWorkbenchShell({ children, parameterRail, label }: { children: ReactNode; parameterRail?: ReactNode; label: string }) {
@@ -17,6 +19,11 @@ export function ModulePreviewSurface({ children, locked }: { children: ReactNode
 
 export function ModuleGenerateCard({ children, actions }: { children: ReactNode; actions?: ReactNode }) {
   return <Section title="生成与交付" eyebrow="Output engineering" actions={actions}>{children}</Section>;
+}
+
+export function ModuleGenerateButton({ module, className = "", disabled = false, onClick }: { module: ModuleId; className?: string; disabled?: boolean; onClick?: () => void | Promise<void> }) {
+  const Icon = MODULE_VISUALS[module].icon;
+  return <Button className={className} variant="primary" icon={<Icon size={17} />} disabled={disabled} onClick={() => onClick?.()}>开始生成</Button>;
 }
 
 export function ModuleCurrentOutput({ children, actions }: { children: ReactNode; actions?: ReactNode }) {

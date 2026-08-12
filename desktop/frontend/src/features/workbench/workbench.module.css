@@ -75,7 +75,6 @@
 
 .generateButton { width: 100%; min-height: 42px; }
 .outputGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
-.pathField { min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px; }
 .currentOutput { display: grid; gap: 10px; padding: 12px; }
 .currentOutput > div:first-child { min-width: 0; display: flex; align-items: center; gap: 8px; }
 .outputIcon { width: 28px; height: 28px; flex: none; display: grid; place-items: center; border-radius: var(--radius-sm); background: var(--accent-soft); color: var(--accent); }
@@ -106,10 +105,6 @@
 .outputColumn { grid-template-rows: auto auto minmax(260px, 1fr); align-content: stretch; }
 .activitySection { min-height: 260px; display: grid; grid-template-rows: auto auto minmax(0, 1fr); overflow: hidden; }
 .activityActions { display: flex; gap: 2px; }
-.activityFilters { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 2px; border-bottom: 1px solid var(--border-subtle); padding: 6px 8px; }
-.activityFilters button { min-width: 0; height: 28px; border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--text-muted); font-size: 9px; font-weight: 700; }
-.activityFilters button:hover { background: var(--surface-hover); color: var(--text-primary); }
-.activityFilters .activityFilterActive { background: var(--accent-soft); color: var(--accent); }
 .activityList { min-height: 0; overflow-y: scroll; scrollbar-gutter: stable; display: grid; align-content: start; }
 .activityTask { display: grid; gap: 7px; padding: 10px 12px; border-bottom: 1px solid var(--border-subtle); }
 .activityTask header { display: flex; align-items: center; justify-content: space-between; gap: 6px; }

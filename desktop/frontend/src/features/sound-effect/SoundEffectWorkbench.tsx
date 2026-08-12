@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { AudioLines, Download, FolderOpen, Heart, LockKeyhole, Sparkles } from "lucide-react";
+import { AudioLines, Download, FolderOpen, Heart, LockKeyhole } from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
 import type { HardwareMetrics, ModuleDescriptor, ProjectDetail, RuntimeSnapshot, SoundEffectDraft, ThemeId } from "../../types";
 import { api } from "../../services/api";
@@ -8,7 +8,7 @@ import { Badge, Button, EmptyState, Field, Section, TextArea, TextInput } from "
 import { ModuleInstallPanel } from "../modules/ModuleInstallPanel";
 import { ModuleTabs } from "../modules/ModuleTabs";
 import { OptionalModuleColumn, OptionalModuleWorkbench } from "../modules/OptionalModuleWorkbench";
-import { AssetLibrary, ModuleActivityActions, ModuleActivityTimeline, ModuleCurrentOutput, ModuleGenerateCard, ModuleParameterRail } from "../modules/ModuleWorkbenchShell";
+import { AssetLibrary, ModuleActivityActions, ModuleActivityTimeline, ModuleCurrentOutput, ModuleGenerateButton, ModuleGenerateCard, ModuleParameterRail } from "../modules/ModuleWorkbenchShell";
 import styles from "./soundEffect.module.css";
 
 interface Props {
@@ -83,8 +83,7 @@ export function SoundEffectWorkbench(props: Props) {
       <OptionalModuleColumn label="音效生成与项目素材" output>
         <ModuleGenerateCard actions={<Badge tone="neutral">预览</Badge>}>
           <div className={styles.generateBody}>
-            <Button className={styles.generateButton} variant="primary" icon={<Sparkles size={17} />} disabled>生成音效</Button>
-            <dl className={styles.specs}><div><dt>采样率</dt><dd>48 kHz</dd></div><div><dt>格式</dt><dd>原生 WAV</dd></div><div><dt>声道</dt><dd>保持模型输出</dd></div><div><dt>命名</dt><dd>项目名_音效_序号_时间</dd></div></dl>
+            <ModuleGenerateButton module="sound_effect" className={styles.generateButton} disabled />
             <p>模型与推理接入完成后，生成任务会进入全局串行队列。</p>
           </div>
         </ModuleGenerateCard>
@@ -93,7 +92,7 @@ export function SoundEffectWorkbench(props: Props) {
           <div className={styles.fakeWave}>{Array.from({ length: 72 }, (_, index) => <i key={index} style={{ height: `${12 + ((index * 17) % 48)}%` }} />)}</div>
           <div className={styles.lockedActions}><Button variant="secondary" icon={<FolderOpen size={14} />} disabled>打开目录</Button><Button variant="primary" icon={<Download size={14} />} disabled>下载</Button></div>
         </ModuleCurrentOutput>
-        <ModuleActivityTimeline actions={<ModuleActivityActions clearDisabled folderDisabled />}><EmptyState title="暂无任务与输出" detail="推理接入后，任务状态和生成结果会统一保存在这里。" /></ModuleActivityTimeline>
+        <ModuleActivityTimeline actions={<ModuleActivityActions clearDisabled onOpenFolder={() => api.openProjectOutputFolder(project.id, "sound_effect")} />}><EmptyState title="暂无任务与输出" detail="推理接入后，任务状态和生成结果会统一保存在这里。" /></ModuleActivityTimeline>
       </OptionalModuleColumn>
     </OptionalModuleWorkbench>
   </>;

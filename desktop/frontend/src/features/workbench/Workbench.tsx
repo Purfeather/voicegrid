@@ -2,7 +2,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import type { AppEvent, HardwareMetrics, ModuleDescriptor, ProjectDetail, RuntimeSnapshot, StylePreset, TaskRecord, ThemeId, VoiceAsset, WorkspaceDraft } from "../../types";
 import { api } from "../../services/api";
-import { openFolder } from "../../services/native";
 import { TitleBar } from "../../components/TitleBar";
 import { EmptyState } from "../../components/UI";
 import { VoicePanel } from "./VoicePanel";
@@ -162,7 +161,6 @@ export function Workbench(props: Props) {
         <ScriptPanel locked={!canEdit} workspace={workspace} stylesList={props.stylesList} languages={props.languages} onWorkspace={updateWorkspace} onStylesChanged={props.onRefreshResources} onMessage={props.onMessage} />
         <OutputPanel
           locked={!canEdit}
-          projectId={project.id}
           workspace={workspace}
           tasks={tasks}
           history={project.history}
@@ -183,7 +181,8 @@ export function Workbench(props: Props) {
             props.onMessage("活动记录已清除，音频文件已保留。", "success");
           }}
           onOpenOutputFolder={async () => {
-            if (!await openFolder(workspace.output_profile.output_directory)) props.onMessage("无法打开当前输出目录。", "error");
+            try { await api.openProjectOutputFolder(project.id, "speech"); }
+            catch (error) { props.onMessage(error instanceof Error ? error.message : "无法打开当前输出目录。", "error"); }
           }}
           onReuse={(snapshot) => {
             const styleExists = props.stylesList.some((style) => style.name === snapshot.style);

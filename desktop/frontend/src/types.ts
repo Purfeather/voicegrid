@@ -48,7 +48,6 @@ export interface OutputProfile {
   bit_depth: 16 | 24 | 32;
   channels: 1 | 2;
   loudness_lufs: number | null;
-  output_directory: string;
 }
 
 export interface AudioHealth {

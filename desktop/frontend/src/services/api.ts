@@ -92,6 +92,7 @@ export const api = {
   clearTasks: (projectId: string, module?: ModuleId) => request<void>(`/tasks?project_id=${encodeURIComponent(projectId)}${module ? `&module=${module}` : ""}`, { method: "DELETE" }),
   clearActivity: (projectId: string, deleteFiles = false, module?: ModuleId) => request<ActivityClearResult>(`/projects/${projectId}/activity?delete_files=${deleteFiles}${module ? `&module=${module}` : ""}`, { method: "DELETE" }),
   clearHistory: (projectId: string, deleteFiles = false, module?: ModuleId) => request<void>(`/projects/${projectId}/history?delete_files=${deleteFiles}${module ? `&module=${module}` : ""}`, { method: "DELETE" }),
+  openProjectOutputFolder: (projectId: string, module: ModuleId) => request<void>(`/projects/${projectId}/outputs/${module}/open`, { method: "POST" }),
   history: (projectId: string, module?: ModuleId) => request<OutputRecord[]>(`/projects/${projectId}/history${module ? `?module=${module}` : ""}`),
   modules: () => request<ModuleDescriptor[]>("/modules"),
   detectModule: (module: ModuleId) => request<ModuleDescriptor>(`/modules/${module}/detect`, { method: "POST" }),

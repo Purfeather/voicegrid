@@ -34,8 +34,4 @@
 .assetList strong { font-size: 10px; }
 .assetList small { color: var(--text-muted); font-size: 8px; }
 .assetList em { color: var(--text-muted); font: normal 700 8px var(--font-mono); }
-.specs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1px; margin: 0; padding: 0; background: var(--border-subtle); }
-.specs div { min-width: 0; display: grid; gap: 3px; padding: 10px; background: var(--surface-sunken); }
-.specs dt { color: var(--text-muted); font-size: 9px; }
-.specs dd { margin: 0; overflow-wrap: anywhere; color: var(--text-primary); font-size: 10px; font-weight: 700; }
 @media (max-width: 1080px) { .sectionBody, .generateBody { padding: 10px; } .parameterGrid { gap: 7px; padding: 10px; } }
