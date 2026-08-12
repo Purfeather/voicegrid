@@ -24,6 +24,27 @@ def sine(sample_rate: int, seconds: float) -> np.ndarray:
 
 
 class RepositoryTests(unittest.TestCase):
+    def test_legacy_project_is_migrated_when_opened(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            database = Database(root / "app.db")
+            database.initialize()
+            try:
+                with patch.object(repository, "DB", database), patch.object(repository, "PROJECTS_DIR", root / "projects"):
+                    created = repository.create_project("旧项目", "Chinese")
+                    project_file = root / "projects" / created["id"] / "project.json"
+                    payload = json.loads(project_file.read_text(encoding="utf-8"))
+                    payload["workspace"].pop("target_duration_enabled")
+                    payload["workspace"].pop("target_duration_seconds")
+                    payload["workspace"]["natural_speed"] = 1.15
+                    project_file.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+                    opened = repository.get_project(created["id"])
+                    self.assertFalse(opened["workspace"]["target_duration_enabled"])
+                    self.assertEqual(opened["workspace"]["target_duration_seconds"], 10)
+                    self.assertNotIn("natural_speed", opened["workspace"])
+            finally:
+                database.close()
+
     def test_project_is_atomic_and_recovery_is_indexed(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

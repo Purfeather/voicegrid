@@ -39,7 +39,11 @@ def _project_file(project_id: str) -> Path:
 
 
 def _read_project(path: Path) -> dict[str, Any]:
-    return json.loads(path.read_text(encoding="utf-8"))
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    workspace = payload.get("workspace")
+    if isinstance(workspace, dict):
+        payload["workspace"] = WorkspaceDraft.model_validate(workspace).model_dump(mode="json")
+    return payload
 
 
 def _write_atomic(path: Path, payload: dict[str, Any]) -> None:
