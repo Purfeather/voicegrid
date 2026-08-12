@@ -11,7 +11,7 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
 ICON_PATH = ROOT / "desktop" / "assets" / "voicegrid.ico"
-WINDOW_TITLE = os.environ.get("MOSS_TTS_WINDOW_TITLE", "声格 VoiceGrid 2.0")
+WINDOW_TITLE = os.environ.get("MOSS_TTS_WINDOW_TITLE", "声格 VoiceGrid 1.0 Beta")
 
 
 class Client:
@@ -76,7 +76,7 @@ class SplashWindow:
         brand_copy = tk.Frame(brand, bg="#090a0b")
         brand_copy.pack(side="left", padx=12)
         tk.Label(brand_copy, text="声格 VoiceGrid", bg="#090a0b", fg="#f4f6f8", font=("Microsoft YaHei UI", 12, "bold")).pack(anchor="w")
-        tk.Label(brand_copy, text="龙融影业 · 2.0", bg="#090a0b", fg="#9aa2ad", font=("Microsoft YaHei UI", 9)).pack(anchor="w", pady=(3, 0))
+        tk.Label(brand_copy, text="龙融影业 · 1.0 Beta", bg="#090a0b", fg="#9aa2ad", font=("Microsoft YaHei UI", 9)).pack(anchor="w", pady=(3, 0))
         tk.Label(brand_copy, text="作者：Wang Xiaohan", bg="#090a0b", fg="#9aa2ad", font=("Segoe UI", 8)).pack(anchor="w", pady=(3, 0))
 
         status = tk.Frame(shell, bg="#090a0b")

@@ -98,7 +98,7 @@ async def lifespan(_: FastAPI):
     DB.close()
 
 
-app = FastAPI(title="声格 VoiceGrid", version="2.0.0-dev", lifespan=lifespan, docs_url=None, redoc_url=None)
+app = FastAPI(title="声格 VoiceGrid", version="1.0.0-beta.1", lifespan=lifespan, docs_url=None, redoc_url=None)
 
 
 def _translate_error(exc: Exception) -> HTTPException:
@@ -116,7 +116,7 @@ def bootstrap():
     return {
         "brand": "龙融影业",
         "product": "声格 VoiceGrid",
-        "version": "2.0.0-dev",
+        "version": "1.0.0-beta.1",
         "projects": list_projects(),
         "voices": list_voices(),
         "styles": list_styles(),
@@ -133,7 +133,7 @@ def health():
         "api": "ready",
         "database": DB.health(),
         "project_index": project_index_status(),
-        "version": "2.0.0-dev",
+        "version": "1.0.0-beta.1",
     }
 
 
@@ -142,7 +142,7 @@ def bootstrap_core():
     return {
         "brand": "龙融影业",
         "product": "声格 VoiceGrid",
-        "version": "2.0.0-dev",
+        "version": "1.0.0-beta.1",
         "languages": LANGUAGES,
         "model_capabilities": {
             "key": "moss-tts-1.5",
