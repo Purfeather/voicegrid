@@ -25,9 +25,27 @@ from .repository import (
 )
 
 
+DURATION_TOKEN_ANCHORS: tuple[tuple[float, int], ...] = (
+    (0.0, 0),
+    (5.0, 55),
+    (10.0, 101),
+    (20.0, 240),
+    (30.0, 300),
+    (60.0, 802),
+)
+
+
 def duration_to_tokens(seconds: int | float) -> int:
-    """Convert seconds to the model's 12.5 Hz duration-control frames."""
-    return max(1, int(float(seconds) * 12.5 + .5))
+    """Map requested seconds to calibrated MOSS duration-control frames."""
+    target = max(0.0, float(seconds))
+    for (left_seconds, left_tokens), (right_seconds, right_tokens) in zip(DURATION_TOKEN_ANCHORS, DURATION_TOKEN_ANCHORS[1:]):
+        if target <= right_seconds:
+            ratio = (target - left_seconds) / (right_seconds - left_seconds)
+            return max(1, int(left_tokens + ratio * (right_tokens - left_tokens) + .5))
+    left_seconds, left_tokens = DURATION_TOKEN_ANCHORS[-2]
+    right_seconds, right_tokens = DURATION_TOKEN_ANCHORS[-1]
+    slope = (right_tokens - left_tokens) / (right_seconds - left_seconds)
+    return max(1, int(right_tokens + (target - right_seconds) * slope + .5))
 
 
 def build_generation_snapshot(workspace: dict[str, Any]) -> dict[str, Any]:

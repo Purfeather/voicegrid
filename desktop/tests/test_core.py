@@ -205,9 +205,15 @@ class AudioOutputTests(unittest.TestCase):
 
 class ModelContractTests(unittest.TestCase):
     def test_duration_control_token_conversion(self) -> None:
-        self.assertEqual(duration_to_tokens(1), 13)
-        self.assertEqual(duration_to_tokens(10), 125)
-        self.assertEqual(duration_to_tokens(120), 1500)
+        self.assertEqual(duration_to_tokens(1), 11)
+        self.assertEqual(duration_to_tokens(5), 55)
+        self.assertEqual(duration_to_tokens(10), 101)
+        self.assertEqual(duration_to_tokens(20), 240)
+        self.assertEqual(duration_to_tokens(30), 300)
+        self.assertEqual(duration_to_tokens(60), 802)
+        self.assertEqual(duration_to_tokens(120), 1806)
+        values = [duration_to_tokens(seconds) for seconds in range(1, 121)]
+        self.assertEqual(values, sorted(values))
 
     def test_legacy_speed_migrates_to_automatic_duration(self) -> None:
         payload = repository.default_workspace("Chinese", Path("outputs"))
