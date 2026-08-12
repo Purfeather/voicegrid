@@ -201,7 +201,7 @@ def list_projects() -> list[dict[str, Any]]:
         "recovery_available": bool(row["recovery_available"]),
         "output_count": int(row["output_count"]),
         "voice": row["voice"],
-        "status": "检测到可恢复进度" if row["recovery_available"] else "已自动保存",
+        "status": "已保留上次编辑进度" if row["recovery_available"] else "已自动保存",
     } for row in rows]
 
 
@@ -227,7 +227,7 @@ def project_detail(payload: dict[str, Any]) -> dict[str, Any]:
         **payload,
         "output_count": int(count_row["count"] if count_row else 0),
         "voice": _project_voice_name(payload.get("workspace", {})),
-        "status": "检测到可恢复进度" if payload.get("recovery_available") else "已自动保存",
+        "status": "已保留上次编辑进度" if payload.get("recovery_available") else "已自动保存",
         "history": list_outputs(payload["id"]),
     }
 
