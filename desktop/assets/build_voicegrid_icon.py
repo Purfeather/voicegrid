@@ -7,6 +7,9 @@ from PIL import Image, ImageDraw
 
 ROOT = Path(__file__).resolve().parent
 SIZES = (16, 20, 24, 32, 48, 64, 128, 256)
+SYSTEM_BACKGROUND = (17, 19, 21, 255)
+SYSTEM_BORDER = (42, 46, 51, 255)
+SYSTEM_ACCENT = (243, 255, 0, 255)
 
 
 def _draw_mark(size: int, color: tuple[int, int, int, int], width_scale: float = 1.0) -> Image.Image:
@@ -36,12 +39,15 @@ def render_system(size: int) -> Image.Image:
     scale = size / 64
     image = Image.new("RGBA", (size, size), (0, 0, 0, 0))
     draw = ImageDraw.Draw(image)
+    border_width = max(1, round(scale))
     draw.rounded_rectangle(
         tuple(round(value * scale) for value in (2, 2, 62, 62)),
         radius=max(2, round(14 * scale)),
-        fill=(95, 102, 112, 255),
+        fill=SYSTEM_BACKGROUND,
+        outline=SYSTEM_BORDER,
+        width=border_width,
     )
-    image.alpha_composite(render_white(size))
+    image.alpha_composite(_draw_mark(size, SYSTEM_ACCENT))
     return image
 
 
