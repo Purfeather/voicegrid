@@ -16,9 +16,12 @@
 .trimGrip { position: absolute; inset: auto 50% 5px auto; display: inline-flex; align-items: center; gap: 4px; translate: 50% 0; border-radius: 999px; padding: 3px 6px; background: var(--surface-raised); color: var(--text-secondary); font-size: 8px; white-space: nowrap; pointer-events: none; box-shadow: var(--shadow-compact); }
 .timeRow { min-height: 18px; display: flex; align-items: center; justify-content: space-between; padding-inline: 2px; color: var(--text-muted); font: 600 10px var(--font-mono); }
 .scrubber { width: 100%; height: 18px; margin: 0; accent-color: var(--accent); }
-.transport { height: 38px; display: flex; align-items: center; justify-content: center; gap: 8px; border-block: 1px solid var(--border-subtle); color: var(--text-muted); }
-.trimToolbar { min-height: 30px; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.trimToolbar button { min-height: 28px; display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: 4px 8px; background: transparent; color: var(--text-secondary); font-size: 10px; font-weight: 700; }
-.trimToolbar button:hover { border-color: var(--accent); background: var(--accent-soft); }
-.trimToolbar .trimToggleActive { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
-.trimToolbar strong { color: var(--text-muted); font: 600 10px var(--font-mono); }
+.transport { min-height: 42px; display: grid; grid-template-columns: minmax(78px, 1fr) auto minmax(78px, 1fr); align-items: center; gap: 10px; border-block: 1px solid var(--border-subtle); }
+.transportControls { display: flex; align-items: center; justify-content: center; gap: 6px; }
+.transport .trimToggle, .transport .trimToggleActive { justify-self: start; min-height: 30px; display: inline-flex; align-items: center; gap: 6px; border: 1px solid transparent; border-radius: var(--radius-sm); padding: 4px 8px; background: transparent; color: var(--text-secondary); font-size: 10px; font-weight: 700; }
+.transport .trimToggle:hover { border-color: var(--border-strong); background: var(--surface-hover); }
+.transport .trimToggleActive { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
+.transport .playButton { width: 34px; height: 34px; border-radius: 50%; background: var(--accent); color: var(--on-accent); }
+.transport .playButton:hover { background: var(--accent-hover); }
+.transport .resetButton { width: 30px; height: 30px; color: var(--text-muted); }
+.transport strong { justify-self: end; color: var(--text-muted); font: 600 9px var(--font-mono); white-space: nowrap; }

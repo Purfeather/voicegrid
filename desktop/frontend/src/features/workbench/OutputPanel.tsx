@@ -54,7 +54,7 @@ export function OutputPanel({ workspace, tasks, history, generating, onWorkspace
 
       <Section title="当前输出" eyebrow="Monitor">
         {current ? <div className={styles.currentOutput}>
-          <div><span className={styles.outputIcon}><AudioLines size={17} /></span><div><strong title={current.filename}>{current.filename}</strong><span>{current.format} · {current.sample_rate / 1000} kHz · {current.bit_depth} bit · {formatDuration(current.duration)}</span></div></div>
+          <div><span className={styles.outputIcon}><AudioLines size={14} /></span><div><strong title={current.filename}>{current.filename}</strong><span>{current.format} · {current.sample_rate / 1000} kHz · {current.bit_depth} bit · {formatDuration(current.duration)}</span></div></div>
           <audio controls src={current.artifact_url} />
           <div className={styles.outputActions}><Button icon={<FolderOpen size={15} />} onClick={() => api.openArtifact(current.id)}>打开目录</Button><a className={styles.downloadButton} href={api.artifactUrl(current.id, true)} download><Download size={15} />下载</a></div>
         </div> : <EmptyState title="尚未生成音频" detail="生成完成后会先保存到历史，再自动出现在这里。" />}

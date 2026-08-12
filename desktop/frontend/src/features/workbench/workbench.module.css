@@ -65,8 +65,8 @@
 .outputGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
 .pathField { min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px; }
 .currentOutput { display: grid; gap: 10px; padding: 12px; }
-.currentOutput > div:first-child { min-width: 0; display: flex; align-items: center; gap: 9px; }
-.outputIcon { width: 34px; height: 34px; flex: none; display: grid; place-items: center; border-radius: 50%; background: var(--accent); color: var(--on-accent); }
+.currentOutput > div:first-child { min-width: 0; display: flex; align-items: center; gap: 8px; }
+.outputIcon { width: 28px; height: 28px; flex: none; display: grid; place-items: center; border-radius: var(--radius-sm); background: var(--accent-soft); color: var(--accent); }
 .currentOutput > div:first-child > div { min-width: 0; display: grid; }
 .currentOutput strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; }
 .currentOutput span { color: var(--text-muted); font-size: 9px; }

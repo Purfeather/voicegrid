@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
-import { Pause, Play, RotateCcw, Scissors, Volume2 } from "lucide-react";
+import { Pause, Play, RotateCcw, Scissors } from "lucide-react";
 import type { VoiceAsset } from "../types";
 import { formatDuration } from "../utils/text";
 import { IconButton } from "./UI";
@@ -151,15 +151,13 @@ export function AudioWaveform({ asset, trimStart, trimEnd, onTrim }: Props) {
       <input className={styles.scrubber} aria-label="播放位置" type="range" min={0} max={Math.max(.01, duration)} step={.01} value={Math.min(position, duration)} onChange={(event) => seek(Number(event.target.value))} />
 
       <div className={styles.transport}>
-        <Volume2 size={16} aria-hidden="true" />
-        <IconButton label={playing ? "暂停" : "播放"} onClick={toggle}>{playing ? <Pause size={18} /> : <Play size={18} />}</IconButton>
-        <IconButton label="回到裁剪起点" onClick={() => seek(safeStart)}><RotateCcw size={17} /></IconButton>
-      </div>
-
-      <div className={styles.trimToolbar}>
         <button className={trimVisible ? styles.trimToggleActive : styles.trimToggle} onClick={() => setTrimVisible((visible) => !visible)}>
           <Scissors size={14} />{trimVisible ? "收起裁剪框" : "裁剪"}
         </button>
+        <div className={styles.transportControls}>
+          <IconButton className={styles.playButton} label={playing ? "暂停" : "播放"} onClick={toggle}>{playing ? <Pause size={18} /> : <Play size={18} />}</IconButton>
+          <IconButton className={styles.resetButton} label="回到裁剪起点" onClick={() => seek(safeStart)}><RotateCcw size={15} /></IconButton>
+        </div>
         <strong>{formatDuration(safeStart)} — {formatDuration(resolvedEnd)}</strong>
       </div>
     </div>
