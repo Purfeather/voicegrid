@@ -32,6 +32,20 @@ class VersionConsistencyTests(unittest.TestCase):
             source = (ROOT / relative).read_text(encoding="utf-8")
             self.assertIn(DISPLAY_VERSION, source, relative)
 
+    def test_splash_shells_use_the_accent_brand_icon(self) -> None:
+        expected_asset = "voicegrid-icon-accent"
+        for relative in (
+            "desktop/host.py",
+            "desktop/splash_host.py",
+            "desktop/splash.html",
+        ):
+            source = (ROOT / relative).read_text(encoding="utf-8")
+            self.assertIn(expected_asset, source, relative)
+            self.assertNotIn("voicegrid-icon-white", source, relative)
+
+        self.assertTrue((ROOT / "desktop" / "assets" / "voicegrid-icon-accent.svg").is_file())
+        self.assertTrue((ROOT / "desktop" / "assets" / "voicegrid-icon-accent.png").is_file())
+
 
 if __name__ == "__main__":
     unittest.main()

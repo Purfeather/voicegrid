@@ -163,7 +163,7 @@ class NativeSplash:
             brand.pack(fill="x")
             try:
                 from PIL import Image, ImageTk
-                mark_image = Image.open(ASSETS_DIR / "voicegrid-icon-white.png").resize((40, 40), Image.Resampling.LANCZOS)
+                mark_image = Image.open(ASSETS_DIR / "voicegrid-icon-accent.png").resize((40, 40), Image.Resampling.LANCZOS)
                 self._brand_icon = ImageTk.PhotoImage(mark_image)
                 mark = tk.Label(brand, image=self._brand_icon, bg="#090a0b")
             except Exception:
