@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PIL import Image, ImageDraw, ImageFilter
+from PIL import Image, ImageDraw
 
 
 ROOT = Path(__file__).resolve().parent
@@ -33,13 +33,16 @@ def render_white(size: int) -> Image.Image:
 
 
 def render_system(size: int) -> Image.Image:
-    white = render_white(size)
-    outline = _draw_mark(size, (95, 102, 112, 118), 1.5)
-    if size >= 48:
-        glow_alpha = outline.getchannel("A").filter(ImageFilter.GaussianBlur(max(.35, size / 192)))
-        outline.putalpha(glow_alpha)
-    outline.alpha_composite(white)
-    return outline
+    scale = size / 64
+    image = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(image)
+    draw.rounded_rectangle(
+        tuple(round(value * scale) for value in (2, 2, 62, 62)),
+        radius=max(2, round(14 * scale)),
+        fill=(95, 102, 112, 255),
+    )
+    image.alpha_composite(render_white(size))
+    return image
 
 
 if __name__ == "__main__":
