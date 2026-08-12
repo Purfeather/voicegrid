@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import threading
 import uuid
+import re
 from concurrent.futures import Future, ThreadPoolExecutor
 from pathlib import Path
 from typing import Any
@@ -16,6 +17,7 @@ from .repository import (
     delete_task,
     get_project,
     get_task,
+    get_voice,
     insert_task,
     list_outputs,
     now,
@@ -25,51 +27,35 @@ from .repository import (
 )
 
 
-DURATION_TOKEN_ANCHORS: tuple[tuple[float, int], ...] = (
-    (0.0, 0),
-    (5.0, 55),
-    (10.0, 101),
-    (20.0, 240),
-    (30.0, 300),
-    (60.0, 802),
-)
+SPEED_TOKENS_PER_CHAR = {
+    "慢": 3.8,
+    "较慢": 3.4,
+    "中等": 3.0,
+    "较快": 2.65,
+    "快": 2.3,
+}
 
 
-def duration_to_tokens(seconds: int | float) -> int:
-    """Map requested seconds to calibrated MOSS duration-control frames."""
-    target = max(0.0, float(seconds))
-    for (left_seconds, left_tokens), (right_seconds, right_tokens) in zip(DURATION_TOKEN_ANCHORS, DURATION_TOKEN_ANCHORS[1:]):
-        if target <= right_seconds:
-            ratio = (target - left_seconds) / (right_seconds - left_seconds)
-            return max(1, int(left_tokens + ratio * (right_tokens - left_tokens) + .5))
-    left_seconds, left_tokens = DURATION_TOKEN_ANCHORS[-2]
-    right_seconds, right_tokens = DURATION_TOKEN_ANCHORS[-1]
-    slope = (right_tokens - left_tokens) / (right_seconds - left_seconds)
-    return max(1, int(right_tokens + (target - right_seconds) * slope + .5))
+def estimate_speed_tokens(text: str, level: str) -> int:
+    """Estimate duration-control frames from effective character count and a named speed tier."""
+    effective_chars = len(re.sub(r"\s+", "", text or ""))
+    factor = SPEED_TOKENS_PER_CHAR.get(level, SPEED_TOKENS_PER_CHAR["中等"])
+    return max(13, int(effective_chars * factor + .5))
 
 
 def build_generation_snapshot(workspace: dict[str, Any]) -> dict[str, Any]:
-    parameters = dict(workspace.get("parameters") or {})
-    segments = split_text(str(workspace.get("text") or ""), int(parameters.get("segment_chars", 400)))
-    target_enabled = bool(workspace.get("target_duration_enabled")) and len(segments) == 1
-    target_seconds = int(workspace.get("target_duration_seconds", 10))
-    target_tokens = duration_to_tokens(target_seconds) if target_enabled else None
     style = str(workspace.get("style") or "")
     instruction = str(workspace.get("instruction") or "").strip()
+    asset_id = workspace.get("voice_id") or workspace.get("reference_id")
+    reference_audio = None
+    if asset_id:
+        voice = get_voice(str(asset_id))
+        reference_audio = {"id": voice["id"], "name": voice["name"], "saved": bool(voice["saved"])}
     return {
         "style": style,
         "instruction": instruction,
-        "language": str(workspace.get("language") or ""),
-        "text": str(workspace.get("text") or ""),
-        "segments": [
-            {"index": index + 1, "text": segment, "style": style, "instruction": instruction}
-            for index, segment in enumerate(segments)
-        ],
-        "preset": str(workspace.get("preset") or "标准"),
-        "parameters": parameters,
-        "target_duration_enabled": target_enabled,
-        "target_duration_seconds": target_seconds,
-        "target_tokens": target_tokens,
+        "reference_audio": reference_audio,
+        "speed": str(workspace.get("manual_speed_level") or "中等") if workspace.get("manual_speed_enabled") else "自动",
     }
 
 
@@ -148,16 +134,15 @@ class TaskService:
                 if reference_path != source_reference:
                     temporary_reference = reference_path
             instruction = str(workspace.get("instruction") or "").strip()
-            target_tokens = None
-            if bool(workspace.get("target_duration_enabled")):
+            segment_target_tokens = None
+            if bool(workspace.get("manual_speed_enabled")):
                 segments = split_text(workspace["text"], int(workspace["parameters"]["segment_chars"]))
-                if len(segments) != 1:
-                    raise ValueError("目标时长仅支持单段文本，请调整文本或每段最大字符数。")
-                target_tokens = duration_to_tokens(int(workspace.get("target_duration_seconds", 10)))
+                level = str(workspace.get("manual_speed_level") or "中等")
+                segment_target_tokens = [estimate_speed_tokens(segment, level) for segment in segments]
             model_payload = {
                 "text": workspace["text"], "language": workspace.get("language", "Chinese"), "instruction": instruction,
                 "parameters": workspace["parameters"], "reference_path": str(reference_path) if reference_path else None,
-                "target_tokens": target_tokens,
+                "segment_target_tokens": segment_target_tokens,
             }
             raw = ENGINE.synthesize(model_payload, progress, lambda: cancel_requested(task_id))
             temporary_raw = Path(raw["source_path"])

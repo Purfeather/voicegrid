@@ -15,7 +15,7 @@ from desktop.backend import output_engineering, repository
 from desktop.backend.database import Database
 from desktop.backend.defaults import PARAMETER_PRESETS
 from desktop.backend.schemas import WorkspaceDraft
-from desktop.backend.task_service import build_generation_snapshot, duration_to_tokens
+from desktop.backend.task_service import build_generation_snapshot, estimate_speed_tokens
 
 
 def sine(sample_rate: int, seconds: float) -> np.ndarray:
@@ -34,14 +34,17 @@ class RepositoryTests(unittest.TestCase):
                     created = repository.create_project("旧项目", "Chinese")
                     project_file = root / "projects" / created["id"] / "project.json"
                     payload = json.loads(project_file.read_text(encoding="utf-8"))
-                    payload["workspace"].pop("target_duration_enabled")
-                    payload["workspace"].pop("target_duration_seconds")
+                    payload["workspace"].pop("manual_speed_enabled")
+                    payload["workspace"].pop("manual_speed_level")
+                    payload["workspace"]["target_duration_enabled"] = True
+                    payload["workspace"]["target_duration_seconds"] = 30
                     payload["workspace"]["natural_speed"] = 1.15
                     project_file.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
                     opened = repository.get_project(created["id"])
-                    self.assertFalse(opened["workspace"]["target_duration_enabled"])
-                    self.assertEqual(opened["workspace"]["target_duration_seconds"], 10)
+                    self.assertFalse(opened["workspace"]["manual_speed_enabled"])
+                    self.assertEqual(opened["workspace"]["manual_speed_level"], "中等")
                     self.assertNotIn("natural_speed", opened["workspace"])
+                    self.assertNotIn("target_duration_enabled", opened["workspace"])
             finally:
                 database.close()
 
@@ -204,39 +207,45 @@ class AudioOutputTests(unittest.TestCase):
 
 
 class ModelContractTests(unittest.TestCase):
-    def test_duration_control_token_conversion(self) -> None:
-        self.assertEqual(duration_to_tokens(1), 11)
-        self.assertEqual(duration_to_tokens(5), 55)
-        self.assertEqual(duration_to_tokens(10), 101)
-        self.assertEqual(duration_to_tokens(20), 240)
-        self.assertEqual(duration_to_tokens(30), 300)
-        self.assertEqual(duration_to_tokens(60), 802)
-        self.assertEqual(duration_to_tokens(120), 1806)
-        values = [duration_to_tokens(seconds) for seconds in range(1, 121)]
-        self.assertEqual(values, sorted(values))
+    def test_manual_speed_estimates_tokens_from_text_length(self) -> None:
+        text = "这是一段用于验证手动语速控制的二十字文本。"
+        effective_chars = len(text)
+        expected = {
+            "慢": max(13, int(effective_chars * 3.8 + .5)),
+            "较慢": max(13, int(effective_chars * 3.4 + .5)),
+            "中等": max(13, int(effective_chars * 3.0 + .5)),
+            "较快": max(13, int(effective_chars * 2.65 + .5)),
+            "快": max(13, int(effective_chars * 2.3 + .5)),
+        }
+        actual = {level: estimate_speed_tokens(text, level) for level in expected}
+        self.assertEqual(actual, expected)
+        self.assertEqual(list(actual.values()), sorted(actual.values(), reverse=True))
+        self.assertEqual(estimate_speed_tokens("你 好\n世 界", "中等"), 13)
 
-    def test_legacy_speed_migrates_to_automatic_duration(self) -> None:
+    def test_legacy_duration_migrates_to_automatic_speed(self) -> None:
         payload = repository.default_workspace("Chinese", Path("outputs"))
-        payload.pop("target_duration_enabled")
-        payload.pop("target_duration_seconds")
+        payload.pop("manual_speed_enabled")
+        payload.pop("manual_speed_level")
+        payload["target_duration_enabled"] = True
+        payload["target_duration_seconds"] = 20
         payload["natural_speed"] = 1.2
         workspace = WorkspaceDraft.model_validate(payload)
-        self.assertFalse(workspace.target_duration_enabled)
-        self.assertEqual(workspace.target_duration_seconds, 10)
+        self.assertFalse(workspace.manual_speed_enabled)
+        self.assertEqual(workspace.manual_speed_level, "中等")
         self.assertNotIn("natural_speed", workspace.model_dump())
+        self.assertNotIn("target_duration_seconds", workspace.model_dump())
 
-    def test_generation_snapshot_freezes_style_segments_and_duration(self) -> None:
+    def test_generation_snapshot_only_freezes_style_instruction_and_reference(self) -> None:
         workspace = repository.default_workspace("Chinese", Path("outputs"))
-        workspace["text"] = "第一段用于验证生成快照能够保存切分信息。第二段继续验证每段都对应相同的生成风格。"
         workspace["style"] = "纪录片旁白"
         workspace["instruction"] = "沉稳、克制"
-        workspace["parameters"]["segment_chars"] = 20
         snapshot = build_generation_snapshot(workspace)
         workspace["instruction"] = "后来修改的提示"
         self.assertEqual(snapshot["instruction"], "沉稳、克制")
-        self.assertGreater(len(snapshot["segments"]), 1)
-        self.assertTrue(all(item["style"] == "纪录片旁白" for item in snapshot["segments"]))
-        self.assertFalse(snapshot["target_duration_enabled"])
+        self.assertEqual(snapshot["style"], "纪录片旁白")
+        self.assertIsNone(snapshot["reference_audio"])
+        self.assertEqual(snapshot["speed"], "自动")
+        self.assertEqual(set(snapshot), {"style", "instruction", "reference_audio", "speed"})
 
     def test_output_snapshot_rebuilds_sqlite_index(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

@@ -91,8 +91,8 @@ export interface WorkspaceDraft {
   language: string;
   style: string;
   instruction: string;
-  target_duration_enabled: boolean;
-  target_duration_seconds: number;
+  manual_speed_enabled: boolean;
+  manual_speed_level: SpeedLevel;
   preset: "标准" | "兼容";
   parameters: SynthesisParameters;
   reference_id: string | null;
@@ -138,15 +138,15 @@ export interface OutputRecord {
 export interface GenerationSnapshot {
   style: string;
   instruction: string;
-  language: string;
-  text: string;
-  segments: Array<{ index: number; text: string; style: string; instruction: string }>;
-  preset: "标准" | "兼容";
-  parameters: SynthesisParameters;
-  target_duration_enabled: boolean;
-  target_duration_seconds: number;
-  target_tokens: number | null;
+  reference_audio?: {
+    id: string;
+    name: string;
+    saved: boolean;
+  } | null;
+  speed?: "自动" | SpeedLevel;
 }
+
+export type SpeedLevel = "慢" | "较慢" | "中等" | "较快" | "快";
 
 export type TaskStatus = "queued" | "running" | "completed" | "failed" | "cancelled" | "interrupted";
 

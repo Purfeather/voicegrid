@@ -31,8 +31,8 @@ class WorkspaceDraft(BaseModel):
     language: str = "Chinese"
     style: str = "自然影视"
     instruction: str = Field(default="", max_length=2000)
-    target_duration_enabled: bool = False
-    target_duration_seconds: int = Field(default=10, ge=1, le=120)
+    manual_speed_enabled: bool = False
+    manual_speed_level: Literal["慢", "较慢", "中等", "较快", "快"] = "中等"
     preset: Literal["标准", "兼容"] = "标准"
     parameters: SynthesisParameters = Field(default_factory=SynthesisParameters)
     reference_id: str | None = None
@@ -47,8 +47,10 @@ class WorkspaceDraft(BaseModel):
         if isinstance(value, dict):
             value = dict(value)
             value.pop("natural_speed", None)
-            value.setdefault("target_duration_enabled", False)
-            value.setdefault("target_duration_seconds", 10)
+            value.pop("target_duration_enabled", None)
+            value.pop("target_duration_seconds", None)
+            value.setdefault("manual_speed_enabled", False)
+            value.setdefault("manual_speed_level", "中等")
         return value
 
     @model_validator(mode="after")

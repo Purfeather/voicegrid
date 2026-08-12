@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { AlignLeft, BookmarkPlus, Languages, Lock, Scissors, Sparkles, Trash2, X } from "lucide-react";
-import type { StylePreset, WorkspaceDraft } from "../../types";
+import type { SpeedLevel, StylePreset, WorkspaceDraft } from "../../types";
 import { api } from "../../services/api";
 import { splitText } from "../../utils/text";
 import { Badge, Button, Field, IconButton, Section, Select, TextArea, TextInput } from "../../components/UI";
@@ -21,12 +21,8 @@ export function ScriptPanel({ workspace, stylesList, languages, onWorkspace, onS
   const selectedStyle = stylesList.find((style) => style.name === workspace.style);
   const count = workspace.text.trim().length;
 
-  useEffect(() => {
-    if (workspace.target_duration_enabled && segments.length !== 1) {
-      onWorkspace({ target_duration_enabled: false });
-      onMessage("目标时长仅支持单段文本，已自动关闭。", "error");
-    }
-  }, [segments.length, workspace.target_duration_enabled]);
+  const speedLevels: SpeedLevel[] = ["慢", "较慢", "中等", "较快", "快"];
+  const speedIndex = Math.max(0, speedLevels.indexOf(workspace.manual_speed_level));
 
   function selectStyle(name: string) {
     const style = stylesList.find((item) => item.name === name);
@@ -62,30 +58,28 @@ export function ScriptPanel({ workspace, stylesList, languages, onWorkspace, onS
         <div className={styles.directionGrid}>
           <Field label="语言" compact><Select value={workspace.language} onChange={(event) => onWorkspace({ language: event.target.value })}>{languages.map((language) => <option key={language.value} value={language.value}>{language.label}</option>)}</Select></Field>
           <Field label="风格 / 情感预设" compact><Select value={workspace.style} onChange={(event) => selectStyle(event.target.value)}>{stylesList.map((style) => <option key={style.name} value={style.name}>{style.name}{style.built_in ? "" : " · 自定义"}</option>)}</Select></Field>
-          <Field label="目标时长" compact>
-            <div className={styles.durationField}>
+          <Field label="手动语速调节" compact>
+            <div className={styles.speedField}>
               <button
                 type="button"
-                className={`${styles.durationSwitch} ${workspace.target_duration_enabled ? styles.durationSwitchOn : ""}`}
+                className={`${styles.durationSwitch} ${workspace.manual_speed_enabled ? styles.durationSwitchOn : ""}`}
                 role="switch"
-                aria-checked={workspace.target_duration_enabled}
-                aria-label="启用目标时长"
-                disabled={segments.length !== 1}
-                title={segments.length !== 1 ? "目标时长仅支持单段文本" : ""}
-                onClick={() => onWorkspace({ target_duration_enabled: !workspace.target_duration_enabled })}
+                aria-checked={workspace.manual_speed_enabled}
+                aria-label="启用手动语速调节"
+                onClick={() => onWorkspace({ manual_speed_enabled: !workspace.manual_speed_enabled })}
               ><span /></button>
               <input
-                type="number"
-                min={1}
-                max={120}
+                type="range"
+                min={0}
+                max={4}
                 step={1}
-                disabled={!workspace.target_duration_enabled}
-                value={workspace.target_duration_enabled ? workspace.target_duration_seconds : ""}
-                placeholder="自动"
-                aria-label="目标时长（秒）"
-                onChange={(event) => onWorkspace({ target_duration_seconds: Math.max(1, Math.min(120, Math.round(Number(event.target.value) || 1))) })}
+                disabled={!workspace.manual_speed_enabled}
+                value={speedIndex}
+                aria-label="手动语速档位"
+                aria-valuetext={workspace.manual_speed_enabled ? workspace.manual_speed_level : "自动"}
+                onChange={(event) => onWorkspace({ manual_speed_level: speedLevels[Number(event.target.value)] })}
               />
-              <strong>秒</strong>
+              <strong>{workspace.manual_speed_enabled ? workspace.manual_speed_level : "自动"}</strong>
             </div>
           </Field>
         </div>

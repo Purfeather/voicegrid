@@ -10,7 +10,6 @@ import { ScriptPanel } from "./ScriptPanel";
 import { OutputPanel } from "./OutputPanel";
 import { ParameterRail } from "./ParameterRail";
 import styles from "./workbench.module.css";
-import { splitText } from "../../utils/text";
 
 interface Props {
   voices: VoiceAsset[];
@@ -150,18 +149,23 @@ export function Workbench(props: Props) {
           }}
           onReuse={(snapshot) => {
             const styleExists = props.stylesList.some((style) => style.name === snapshot.style);
-            const segments = splitText(workspace.text, snapshot.parameters.segment_chars);
+            const reference = snapshot.reference_audio;
+            const voiceExists = !reference || props.voices.some((voice) => voice.id === reference.id);
             updateWorkspace({
-              language: snapshot.language,
               instruction: snapshot.instruction,
+              manual_speed_enabled: Boolean(snapshot.speed && snapshot.speed !== "自动"),
+              ...(snapshot.speed && snapshot.speed !== "自动" ? { manual_speed_level: snapshot.speed } : {}),
               ...(styleExists ? { style: snapshot.style } : {}),
-              preset: snapshot.preset,
-              parameters: { ...snapshot.parameters },
-              target_duration_enabled: snapshot.target_duration_enabled && segments.length === 1,
-              target_duration_seconds: snapshot.target_duration_seconds,
+              ...(voiceExists ? reference
+                ? reference.saved
+                  ? { voice_id: reference.id, reference_id: null, reference_trim_start: 0, reference_trim_end: null }
+                  : { reference_id: reference.id, voice_id: null, reference_trim_start: 0, reference_trim_end: null }
+                : { voice_id: null, reference_id: null, reference_trim_start: 0, reference_trim_end: null }
+                : {}),
             });
-            if (!styleExists) props.onMessage("原风格已不存在，已保留当前风格并复用提示词与参数。", "success");
-            else if (snapshot.target_duration_enabled && segments.length !== 1) props.onMessage("设定已复用；当前文本为多段，目标时长保持关闭。", "success");
+            if (!styleExists && !voiceExists) props.onMessage("原风格和参考音频已不存在，已复用情感提示与语速。", "success");
+            else if (!styleExists) props.onMessage("原风格已不存在，已复用情感提示、参考音频与语速。", "success");
+            else if (!voiceExists) props.onMessage("原参考音频已不存在，已复用风格、情感提示与语速。", "success");
             else props.onMessage("生成设定已复用。", "success");
           }}
         />

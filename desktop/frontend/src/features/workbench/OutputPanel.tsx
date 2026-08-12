@@ -28,12 +28,6 @@ type ActivityItem =
   | { kind: "task"; id: string; createdAt: string; task: TaskRecord }
   | { kind: "output"; id: string; createdAt: string; output: OutputRecord };
 
-const PARAMETER_LABELS: Array<[keyof GenerationSnapshot["parameters"], string]> = [
-  ["temperature", "Temperature"], ["top_p", "Top-P"], ["top_k", "Top-K"],
-  ["repetition_penalty", "重复惩罚"], ["max_seconds", "每段最大秒数"],
-  ["segment_chars", "每段最大字符"], ["pause_ms", "段间停顿（ms）"], ["seed", "随机种子"],
-];
-
 export function OutputPanel({ workspace, tasks, history, generating, onWorkspace, onGenerate, onCancel, onRemoveTask, onClearActivity, onOpenOutputFolder, onReuse }: Props) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [filter, setFilter] = useState<ActivityFilter>("all");
@@ -141,15 +135,12 @@ export function OutputPanel({ workspace, tasks, history, generating, onWorkspace
           <div className={styles.generationPopoverBody}>
             <dl className={styles.generationFacts}>
               <div><dt>风格</dt><dd>{current.generation_snapshot.style || "未命名"}</dd></div>
-              <div><dt>语言</dt><dd>{current.generation_snapshot.language || "自动"}</dd></div>
-              <div><dt>参数预设</dt><dd>{current.generation_snapshot.preset}</dd></div>
-              <div><dt>目标时长</dt><dd>{current.generation_snapshot.target_duration_enabled ? `${current.generation_snapshot.target_duration_seconds} 秒 · ${current.generation_snapshot.target_tokens} tokens` : "自动"}</dd></div>
+              <div><dt>生成语速</dt><dd>{current.generation_snapshot.speed || "自动"}</dd></div>
+              <div><dt>原参考音频</dt><dd>{current.generation_snapshot.reference_audio?.name || "无参考"}</dd></div>
             </dl>
-            <section><strong>风格 / 情感提示</strong><p>{current.generation_snapshot.instruction || "未设置"}</p></section>
-            <section><strong>高级参数</strong><dl className={styles.parameterFacts}>{PARAMETER_LABELS.map(([key, label]) => <div key={key}><dt>{label}</dt><dd>{current.generation_snapshot!.parameters[key]}</dd></div>)}</dl></section>
-            <section><strong>生成片段</strong><ol>{current.generation_snapshot.segments.map((segment) => <li key={segment.index}><span>{String(segment.index).padStart(2, "0")}</span>{segment.text}</li>)}</ol></section>
+            <section><strong>情感提示</strong><p>{current.generation_snapshot.instruction || "未设置"}</p></section>
           </div>
-          <footer><Button variant="primary" icon={<RotateCcw size={15} />} onClick={() => { onReuse(current.generation_snapshot!); setSettingsOpen(false); }}>一键复用到当前设定</Button></footer>
+          <footer><Button variant="primary" icon={<RotateCcw size={15} />} onClick={() => { onReuse(current.generation_snapshot!); setSettingsOpen(false); }}>一键复用生成设定</Button></footer>
         </div>, document.body,
       )}
 
