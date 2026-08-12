@@ -11,6 +11,8 @@ import { OutputPanel } from "./OutputPanel";
 import { ParameterRail } from "./ParameterRail";
 import styles from "./workbench.module.css";
 import { ModuleTabs } from "../modules/ModuleTabs";
+import { ModuleInstallPanel } from "../modules/ModuleInstallPanel";
+import { ModuleWorkbenchShell } from "../modules/ModuleWorkbenchShell";
 
 interface Props {
   voices: VoiceAsset[];
@@ -25,6 +27,7 @@ interface Props {
   onRuntime: (runtime: RuntimeSnapshot) => void;
   onMessage: (message: string, tone?: "success" | "error") => void;
   modules: ModuleDescriptor[];
+  onModulesChanged: () => Promise<void>;
 }
 
 export function Workbench(props: Props) {
@@ -149,14 +152,16 @@ export function Workbench(props: Props) {
   if (!project || !workspace) return <><TitleBar runtime={props.runtime} metrics={props.metrics} theme={props.theme} onTheme={props.onTheme} onBack={() => navigate("/projects")} onRelease={async () => props.onRuntime(await api.releaseRuntime())} /><ModuleTabs modules={props.modules} /><main id="main-content" className={styles.workbench}><EmptyState title="正在准备工作台" detail="正在读取项目、音色和运行环境…" /></main></>;
 
   const generating = tasks.some((task) => task.status === "queued" || task.status === "running");
+  const module = props.modules.find((item) => item.id === "speech");
+  const canEdit = Boolean(module?.installed);
   return <>
-    <TitleBar projectName={project.name} saveState={saveState} runtime={props.runtime} metrics={props.metrics} theme={props.theme} onTheme={props.onTheme} onBack={back} onRelease={async () => props.onRuntime(await api.releaseRuntime())} />
+    <TitleBar projectName={project.name} saveState={canEdit ? saveState : "预览模式 · 未保存"} runtime={props.runtime} metrics={props.metrics} theme={props.theme} onTheme={props.onTheme} onBack={back} onRelease={async () => props.onRuntime(await api.releaseRuntime())} />
     <ModuleTabs modules={props.modules} beforeNavigate={saveBeforeModuleSwitch} />
-    <main id="main-content" className={styles.workbench}>
-      <div className={styles.workbenchMain}>
-        <VoicePanel voices={props.voices} workspace={workspace} onWorkspace={updateWorkspace} onVoicesChanged={props.onRefreshResources} onMessage={props.onMessage} />
-        <ScriptPanel workspace={workspace} stylesList={props.stylesList} languages={props.languages} onWorkspace={updateWorkspace} onStylesChanged={props.onRefreshResources} onMessage={props.onMessage} />
+    <ModuleWorkbenchShell label="语音合成工作台" parameterRail={<ParameterRail open={parameterOpen} workspace={workspace} onOpen={setParameterOpen} onWorkspace={updateWorkspace} locked={!canEdit} />}>
+        <VoicePanel leading={module && <ModuleInstallPanel module={module} onDetect={async () => { await api.detectModule("speech"); await props.onModulesChanged(); }} onInstall={async (repair) => { await api.installModule("speech", repair); await props.onModulesChanged(); props.onMessage("语音模型安装已在后台开始，可以继续预览其他模块。", "success"); }} />} locked={!canEdit} voices={props.voices} workspace={workspace} onWorkspace={updateWorkspace} onVoicesChanged={props.onRefreshResources} onMessage={props.onMessage} />
+        <ScriptPanel locked={!canEdit} workspace={workspace} stylesList={props.stylesList} languages={props.languages} onWorkspace={updateWorkspace} onStylesChanged={props.onRefreshResources} onMessage={props.onMessage} />
         <OutputPanel
+          locked={!canEdit}
           projectId={project.id}
           workspace={workspace}
           tasks={tasks}
@@ -202,8 +207,6 @@ export function Workbench(props: Props) {
             else props.onMessage("生成设定已复用。", "success");
           }}
         />
-      </div>
-      <ParameterRail open={parameterOpen} workspace={workspace} onOpen={setParameterOpen} onWorkspace={updateWorkspace} />
-    </main>
+    </ModuleWorkbenchShell>
   </>;
 }

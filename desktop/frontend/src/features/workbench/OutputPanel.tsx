@@ -7,6 +7,7 @@ import { selectFolder } from "../../services/native";
 import { Badge, Button, EmptyState, Field, IconButton, Progress, Section, Select, TextInput } from "../../components/UI";
 import { formatDuration } from "../../utils/text";
 import styles from "./workbench.module.css";
+import { ModuleActivityTimeline, ModuleCurrentOutput, ModuleGenerateCard } from "../modules/ModuleWorkbenchShell";
 
 interface Props {
   projectId: string;
@@ -21,6 +22,7 @@ interface Props {
   onClearActivity: () => Promise<void>;
   onOpenOutputFolder: () => Promise<void>;
   onReuse: (snapshot: GenerationSnapshot) => void;
+  locked?: boolean;
 }
 
 type ActivityFilter = "all" | "active" | "completed" | "exception";
@@ -28,7 +30,7 @@ type ActivityItem =
   | { kind: "task"; id: string; createdAt: string; task: TaskRecord }
   | { kind: "output"; id: string; createdAt: string; output: OutputRecord };
 
-export function OutputPanel({ workspace, tasks, history, generating, onWorkspace, onGenerate, onCancel, onRemoveTask, onClearActivity, onOpenOutputFolder, onReuse }: Props) {
+export function OutputPanel({ workspace, tasks, history, generating, onWorkspace, onGenerate, onCancel, onRemoveTask, onClearActivity, onOpenOutputFolder, onReuse, locked = false }: Props) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [filter, setFilter] = useState<ActivityFilter>("all");
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -108,8 +110,8 @@ export function OutputPanel({ workspace, tasks, history, generating, onWorkspace
   }
 
   return (
-    <div className={`${styles.columnScroll} ${styles.outputColumn}`}>
-      <Section title="生成与交付" eyebrow="Output engineering" actions={<Badge tone={generating ? "accent" : "neutral"}>{generating ? "生成中" : "准备就绪"}</Badge>}>
+    <div className={`${styles.columnScroll} ${styles.outputColumn} ${locked ? styles.previewLocked : ""}`} aria-disabled={locked} inert={locked}>
+      <ModuleGenerateCard actions={<Badge tone={generating ? "accent" : "neutral"}>{generating ? "生成中" : "准备就绪"}</Badge>}>
         <div className={styles.sectionBody}>
           <Button className={styles.generateButton} variant="primary" icon={<WandSparkles size={17} />} busy={generating} disabled={!workspace.text.trim() || generating} onClick={onGenerate}>{generating ? "正在生成音频" : "开始生成"}</Button>
           <div className={styles.outputGrid}>
@@ -121,15 +123,15 @@ export function OutputPanel({ workspace, tasks, history, generating, onWorkspace
           <Field label="目标响度" compact><div className={styles.rangeWithValue}><input type="range" min={-30} max={-12} step={1} value={profile.loudness_lufs ?? -23} onChange={(event) => updateProfile({ loudness_lufs: Number(event.target.value) })} /><strong>{profile.loudness_lufs ?? "关闭"} LUFS</strong></div></Field>
           <Field label="输出目录" compact><div className={styles.pathField}><TextInput readOnly value={profile.output_directory} title={profile.output_directory} /><IconButton label="选择输出目录" onClick={chooseOutputDirectory}><FolderOpen size={16} /></IconButton></div></Field>
         </div>
-      </Section>
+      </ModuleGenerateCard>
 
-      <Section title="当前输出" eyebrow="Monitor" actions={generationSnapshot && <div ref={settingsButton}><Button className={styles.settingsTrigger} variant="ghost" icon={<Settings2 size={14} />} onClick={() => setSettingsOpen((value) => !value)}>生成设定</Button></div>}>
+      <ModuleCurrentOutput actions={generationSnapshot && <div ref={settingsButton}><Button className={styles.settingsTrigger} variant="ghost" icon={<Settings2 size={14} />} onClick={() => setSettingsOpen((value) => !value)}>生成设定</Button></div>}>
         {current ? <div className={styles.currentOutput}>
           <div><span className={styles.outputIcon}><AudioLines size={14} /></span><div><strong title={current.filename}>{current.filename}</strong><span>{current.format} · {current.sample_rate / 1000} kHz · {current.bit_depth} bit · {formatDuration(current.duration)}</span></div></div>
           <audio controls src={current.artifact_url} />
           <div className={styles.outputActions}><Button icon={<FolderOpen size={15} />} onClick={() => api.openArtifact(current.id)}>打开目录</Button><a className={styles.downloadButton} href={api.artifactUrl(current.id, true)} download><Download size={15} />下载</a></div>
         </div> : <EmptyState title="尚未生成音频" detail="生成完成后会先保存到活动记录，再自动出现在这里。" />}
-      </Section>
+      </ModuleCurrentOutput>
 
       {settingsOpen && generationSnapshot && createPortal(
         <div ref={settingsPopover} className={styles.generationPopover} style={popoverPosition} role="dialog" aria-label="生成设定">
@@ -146,9 +148,7 @@ export function OutputPanel({ workspace, tasks, history, generating, onWorkspace
         </div>, document.body,
       )}
 
-      <Section
-        title="任务与输出"
-        eyebrow="Activity"
+      <ModuleActivityTimeline
         className={styles.activitySection}
         actions={<div className={styles.activityActions}>
           <IconButton label="清除全部记录" disabled={!tasks.length && !history.length} onClick={onClearActivity}><BrushCleaning size={14} /></IconButton>
@@ -174,7 +174,7 @@ export function OutputPanel({ workspace, tasks, history, generating, onWorkspace
             </article>
           )) : <EmptyState title="没有匹配的活动" detail="生成任务和已保存的输出会统一显示在这里。" />}
         </div>
-      </Section>
+      </ModuleActivityTimeline>
     </div>
   );
 }

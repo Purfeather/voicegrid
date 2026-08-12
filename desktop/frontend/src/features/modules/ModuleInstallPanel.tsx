@@ -15,13 +15,13 @@ export function ModuleInstallPanel({ module, onDetect, onInstall }: { module: Mo
 
   if (module.installed) return (
     <section className={styles.installReady}>
-      <CheckCircle2 size={18} /><div><strong>模块已安装</strong><span>{module.model_name} 与独立环境均已检测到</span></div>
+      <CheckCircle2 size={18} /><div><strong>模块已安装</strong><span>{module.model_name} 与{module.runtime_mode === "host" ? "主程序环境" : "独立环境"}均已检测到</span></div>
       <Button variant="ghost" icon={<RefreshCw size={14} />} busy={busy} onClick={() => run(onDetect)}>重新检测</Button>
     </section>
   );
   return <>
     <section className={styles.installPanel}>
-      <header><div><span>OPTIONAL MODULE</span><strong>{repair ? "安装需要修复" : "模型尚未安装"}</strong></div><Badge tone={repair ? "warning" : "neutral"}>可预览界面</Badge></header>
+      <header><div><span>MODULE STATUS</span><strong>{repair ? "安装需要修复" : "模型尚未安装"}</strong></div><Badge tone={repair ? "warning" : "neutral"}>可预览界面</Badge></header>
       <p>{module.description}</p>
       {installing ? <div className={styles.installProgress}><Progress value={module.install_progress} label="安装进度" /><span>{module.install_message}</span></div> : <div className={styles.installActions}>
         <Button variant="primary" icon={repair ? <Wrench size={15} /> : <Download size={15} />} onClick={() => setConfirmOpen(true)}>{repair ? "安装 / 修复" : "自动安装"}</Button>
@@ -35,7 +35,7 @@ export function ModuleInstallPanel({ module, onDetect, onInstall }: { module: Mo
         <div><HardDrive size={18} /><span>下载 / 临时峰值</span><strong>{module.download_gb.toFixed(1)} / {module.required_disk_gb.toFixed(1)} GB</strong></div>
         <div><ShieldCheck size={18} /><span>来源与版本</span><strong>ModelScope · 固定清单</strong></div>
         <div><FolderCog size={18} /><span>运行环境</span><strong>{module.runtime_python}</strong></div>
-        <p>安装只会在你确认后开始。模型、音频分词器和依赖保存在测试版的独立目录，不会修改现有 MOSS-TTS 环境。</p>
+        <p>安装只会在你确认后开始。模型与音频分词器保存在测试版独立目录；{module.runtime_mode === "host" ? "继续复用主程序运行环境" : "依赖使用模块专属运行环境"}，不会修改正式版模型。</p>
         <ul>{module.manual_paths.map((path) => <li key={path}>{path}</li>)}</ul>
         <small>{module.model_locks.map((lock) => `${lock.model_id}（${formatBytes(lock.total_bytes)}）`).join("；")}</small>
       </div>

@@ -269,6 +269,7 @@ export function App() {
             onRuntime={(value) => setRuntime(readyResource(value))}
             onMessage={message}
             modules={modules.data}
+            onModulesChanged={refreshModules}
           />
         </Suspense>
       } />
@@ -276,6 +277,7 @@ export function App() {
         <Suspense fallback={<WorkspaceFallback runtime={runtime.data} metrics={metrics.data} theme={theme} onTheme={setTheme} onRelease={releaseRuntime} />}>
           <VoiceDesignWorkbench
             modules={modules.data}
+            voices={voices.data}
             runtime={runtime.data}
             metrics={metrics.data}
             event={lastEvent}

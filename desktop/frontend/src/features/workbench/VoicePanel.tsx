@@ -1,9 +1,10 @@
-import { useMemo, useRef, useState } from "react";
-import { Check, FileAudio2, Library, Pencil, Play, Save, Trash2, Upload, Waves } from "lucide-react";
+import { useMemo, useRef, useState, type ReactNode } from "react";
+import { FileAudio2, Save, Upload } from "lucide-react";
 import type { VoiceAsset, WorkspaceDraft } from "../../types";
 import { api } from "../../services/api";
 import { AudioWaveform } from "../../components/AudioWaveform";
-import { Badge, Button, EmptyState, IconButton, Section, TextInput } from "../../components/UI";
+import { Badge, Button, EmptyState, Section, TextInput } from "../../components/UI";
+import { VoiceAssetLibrary } from "../modules/VoiceAssetLibrary";
 import styles from "./workbench.module.css";
 
 interface Props {
@@ -12,15 +13,16 @@ interface Props {
   onWorkspace: (patch: Partial<WorkspaceDraft>) => void;
   onVoicesChanged: () => Promise<void>;
   onMessage: (message: string, tone?: "success" | "error") => void;
+  leading?: ReactNode;
+  locked?: boolean;
 }
 
-export function VoicePanel({ voices, workspace, onWorkspace, onVoicesChanged, onMessage }: Props) {
+export function VoicePanel({ voices, workspace, onWorkspace, onVoicesChanged, onMessage, leading, locked = false }: Props) {
   const fileInput = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [saveName, setSaveName] = useState("");
   const selectedId = workspace.voice_id || workspace.reference_id;
   const selected = useMemo(() => voices.find((voice) => voice.id === selectedId) || null, [voices, selectedId]);
-  const savedVoices = voices.filter((voice) => voice.saved);
 
   async function upload(file?: File) {
     if (!file) return;
@@ -52,32 +54,14 @@ export function VoicePanel({ voices, workspace, onWorkspace, onVoicesChanged, on
     } finally { setBusy(false); }
   }
 
-  async function rename(voice: VoiceAsset) {
-    const name = window.prompt("输入新的音色名称", voice.name)?.trim();
-    if (!name || name === voice.name) return;
-    try {
-      await api.renameVoice(voice.id, name);
-      await onVoicesChanged();
-      onMessage("音色名称已更新。", "success");
-    } catch (error) { onMessage(error instanceof Error ? error.message : "重命名失败", "error"); }
-  }
-
-  async function remove(voice: VoiceAsset) {
-    if (!window.confirm(`确定删除音色“${voice.name}”及其本地音频文件吗？`)) return;
-    try {
-      await api.deleteVoice(voice.id, true);
-      if (selectedId === voice.id) onWorkspace({ voice_id: null, reference_id: null, reference_trim_start: 0, reference_trim_end: null });
-      await onVoicesChanged();
-      onMessage("音色已删除。", "success");
-    } catch (error) { onMessage(error instanceof Error ? error.message : "删除失败", "error"); }
-  }
-
   function choose(voice: VoiceAsset) {
     onWorkspace(voice.saved ? { voice_id: voice.id, reference_id: null, reference_trim_start: 0, reference_trim_end: null } : { reference_id: voice.id, voice_id: null, reference_trim_start: 0, reference_trim_end: null });
   }
 
   return (
     <div className={styles.columnScroll}>
+      {leading}
+      <div className={`${styles.columnContent} ${locked ? styles.previewLocked : ""}`} aria-disabled={locked} inert={locked}>
       <Section title="参考音色" eyebrow="Voice material" actions={<Badge tone={selected ? "accent" : "neutral"}>{selected ? "已启用" : "未选择"}</Badge>}>
         <div className={styles.sectionBody}>
           <button className={styles.uploadZone} onClick={() => fileInput.current?.click()} disabled={busy}>
@@ -95,16 +79,8 @@ export function VoicePanel({ voices, workspace, onWorkspace, onVoicesChanged, on
         </div>
       </Section>
 
-      <Section title="音色库" eyebrow="Saved voices" actions={<Badge>{savedVoices.length} 个</Badge>}>
-        <div className={styles.voiceLibrary}>
-          {savedVoices.length ? savedVoices.map((voice) => (
-            <div key={voice.id} className={`${styles.voiceRow} ${workspace.voice_id === voice.id ? styles.voiceActive : ""}`}>
-              <button className={styles.voiceSelect} onClick={() => choose(voice)}><span className={styles.voiceIcon}>{workspace.voice_id === voice.id ? <Check size={15} /> : <Waves size={15} />}</span><span><strong>{voice.name}</strong><small>{voice.health.suitability} · {voice.health.duration.toFixed(1)} 秒</small></span></button>
-              <div><IconButton label={`试听 ${voice.name}`} onClick={() => new Audio(voice.artifact_url).play()}><Play size={14} /></IconButton><IconButton label={`重命名 ${voice.name}`} onClick={() => rename(voice)}><Pencil size={14} /></IconButton><IconButton label={`删除 ${voice.name}`} onClick={() => remove(voice)}><Trash2 size={14} /></IconButton></div>
-            </div>
-          )) : <EmptyState title="音色库为空" detail="上传音频后可以选择保存，方便下次使用。" />}
-        </div>
-      </Section>
+      <VoiceAssetLibrary voices={voices} selectedId={workspace.voice_id} onSelect={choose} onChanged={onVoicesChanged} onMessage={onMessage} onRemoved={(voice) => { if (selectedId === voice.id) onWorkspace({ voice_id: null, reference_id: null, reference_trim_start: 0, reference_trim_end: null }); }} />
+      </div>
     </div>
   );
 }

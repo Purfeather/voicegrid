@@ -9,6 +9,7 @@ interface Props {
   workspace: WorkspaceDraft;
   onOpen: (open: boolean) => void;
   onWorkspace: (patch: Partial<WorkspaceDraft>) => void;
+  locked?: boolean;
 }
 
 const fields: Array<{ key: keyof SynthesisParameters; label: string; min: number; max: number; step: number }> = [
@@ -22,7 +23,7 @@ const fields: Array<{ key: keyof SynthesisParameters; label: string; min: number
   { key: "seed", label: "随机种子", min: 0, max: 2147483647, step: 1 },
 ];
 
-export function ParameterRail({ open, workspace, onOpen, onWorkspace }: Props) {
+export function ParameterRail({ open, workspace, onOpen, onWorkspace, locked = false }: Props) {
   function choosePreset(preset: "标准" | "兼容") {
     onWorkspace({ preset, parameters: { ...PARAMETER_PRESETS[preset] } });
   }
@@ -33,7 +34,7 @@ export function ParameterRail({ open, workspace, onOpen, onWorkspace }: Props) {
 
   return (
     <section className={`${styles.parameterRail} ${open ? styles.parameterOpen : ""}`}>
-      <button className={styles.parameterSummary} onClick={() => onOpen(!open)} aria-expanded={open}>
+      <button className={styles.parameterSummary} disabled={locked} onClick={() => onOpen(!open)} aria-expanded={open}>
         <span className={styles.railIcon}><SlidersHorizontal size={17} /></span>
         <span><strong>高级生成参数</strong><small>{workspace.preset} · {workspace.parameters.segment_chars} 字 · {workspace.parameters.max_seconds} 秒 · Top-K {workspace.parameters.top_k}</small></span>
         <div className={styles.presetToggle} role="group" aria-label="高级参数预设" onClick={(event) => event.stopPropagation()}>
@@ -41,7 +42,7 @@ export function ParameterRail({ open, workspace, onOpen, onWorkspace }: Props) {
         </div>
         <span className={styles.expandLabel}>{open ? "收起" : "展开"}{open ? <ChevronDown size={15} /> : <ChevronUp size={15} />}</span>
       </button>
-      {open && <div className={styles.parameterBody}>
+      {open && <div className={styles.parameterBody} inert={locked}>
         <div className={styles.parameterGrid}>
           {fields.map((field) => <Field key={field.key} label={field.label} help={PARAMETER_HELP[field.key]} compact><TextInput type="number" min={field.min} max={field.max} step={field.step} value={workspace.parameters[field.key]} onChange={(event) => update(field.key, Number(event.target.value))} /></Field>)}
         </div>

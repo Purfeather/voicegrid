@@ -13,9 +13,10 @@ interface Props {
   onWorkspace: (patch: Partial<WorkspaceDraft>) => void;
   onStylesChanged: () => Promise<void>;
   onMessage: (message: string, tone?: "success" | "error") => void;
+  locked?: boolean;
 }
 
-export function ScriptPanel({ workspace, stylesList, languages, onWorkspace, onStylesChanged, onMessage }: Props) {
+export function ScriptPanel({ workspace, stylesList, languages, onWorkspace, onStylesChanged, onMessage, locked = false }: Props) {
   const [customName, setCustomName] = useState("");
   const editorRef = useRef<HTMLTextAreaElement>(null);
   const segments = useMemo(() => splitText(workspace.text, workspace.parameters.segment_chars), [workspace.text, workspace.parameters.segment_chars]);
@@ -65,7 +66,7 @@ export function ScriptPanel({ workspace, stylesList, languages, onWorkspace, onS
   }
 
   return (
-    <div className={styles.scriptColumn}>
+    <div className={`${styles.scriptColumn} ${locked ? styles.previewLocked : ""}`} aria-disabled={locked} inert={locked}>
       <Section title="表演设定" eyebrow="Direction" className={styles.directionSection}>
         <div className={styles.directionGrid}>
           <Field label="语言" compact><Select value={workspace.language} onChange={(event) => onWorkspace({ language: event.target.value })}>{languages.map((language) => <option key={language.value} value={language.value}>{language.label}</option>)}</Select></Field>

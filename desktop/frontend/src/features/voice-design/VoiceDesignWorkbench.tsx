@@ -1,17 +1,20 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AudioLines, BrushCleaning, ChevronDown, ChevronUp, Download, FileAudio2, FolderOpen, Save, Sparkles, Square, Trash2, WandSparkles } from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
-import type { AppEvent, HardwareMetrics, ModuleDescriptor, OutputRecord, ProjectDetail, RuntimeSnapshot, TaskRecord, ThemeId, VoiceDesignDraft, VoicePromptComposer } from "../../types";
+import type { AppEvent, HardwareMetrics, ModuleDescriptor, OutputRecord, ProjectDetail, RuntimeSnapshot, TaskRecord, ThemeId, VoiceAsset, VoiceDesignDraft, VoicePromptComposer } from "../../types";
 import { api } from "../../services/api";
 import { TitleBar } from "../../components/TitleBar";
 import { Badge, Button, EmptyState, Field, IconButton, Modal, Progress, Section, Select, TextArea, TextInput } from "../../components/UI";
 import { ModuleTabs } from "../modules/ModuleTabs";
 import { ModuleInstallPanel } from "../modules/ModuleInstallPanel";
 import { OptionalModuleColumn, OptionalModuleWorkbench } from "../modules/OptionalModuleWorkbench";
+import { ModuleActivityTimeline, ModuleCurrentOutput, ModuleGenerateCard, ModuleParameterRail } from "../modules/ModuleWorkbenchShell";
+import { VoiceAssetLibrary } from "../modules/VoiceAssetLibrary";
 import styles from "./voiceDesign.module.css";
 
 interface Props {
   modules: ModuleDescriptor[];
+  voices: VoiceAsset[];
   runtime: RuntimeSnapshot;
   metrics: HardwareMetrics;
   event: AppEvent | null;
@@ -190,9 +193,22 @@ export function VoiceDesignWorkbench(props: Props) {
   return <>
     <TitleBar projectName={project.name} saveState={canEdit ? saveState : "预览模式 · 未保存"} runtime={props.runtime} metrics={props.metrics} theme={props.theme} onTheme={props.onTheme} onBack={closeProject} onRelease={async () => props.onRuntime(await api.releaseRuntime())} />
     <ModuleTabs modules={props.modules} beforeNavigate={saveBeforeModuleSwitch} />
-    <OptionalModuleWorkbench label="音色设计工作台">
+    <OptionalModuleWorkbench label="音色设计工作台" parameterRail={<ModuleParameterRail open={advancedOpen} onOpen={setAdvancedOpen} title="高级生成参数" summary={`官方推荐 · Temperature ${draft.parameters.audio_temperature} · Top-P ${draft.parameters.audio_top_p} · Top-K ${draft.parameters.audio_top_k}`} locked={!canEdit}>
+      <fieldset className={styles.railParameterGrid} disabled={!canEdit}>
+        <Field label="Temperature"><TextInput type="number" step="0.1" min="0.1" max="3" value={draft.parameters.audio_temperature} onChange={(e) => update({ parameters: { ...draft.parameters, audio_temperature: Number(e.target.value) } })} /></Field>
+        <Field label="Top-P"><TextInput type="number" step="0.05" min="0.1" max="1" value={draft.parameters.audio_top_p} onChange={(e) => update({ parameters: { ...draft.parameters, audio_top_p: Number(e.target.value) } })} /></Field>
+        <Field label="Top-K"><TextInput type="number" min="1" max="200" value={draft.parameters.audio_top_k} onChange={(e) => update({ parameters: { ...draft.parameters, audio_top_k: Number(e.target.value) } })} /></Field>
+        <Field label="重复惩罚"><TextInput type="number" step="0.05" min="0.5" max="2" value={draft.parameters.audio_repetition_penalty} onChange={(e) => update({ parameters: { ...draft.parameters, audio_repetition_penalty: Number(e.target.value) } })} /></Field>
+        <Field label="最大 Tokens"><TextInput type="number" min="256" max="8192" step="128" value={draft.parameters.max_new_tokens} onChange={(e) => update({ parameters: { ...draft.parameters, max_new_tokens: Number(e.target.value) } })} /></Field>
+        <Field label="随机种子"><TextInput type="number" min="0" value={draft.parameters.seed} onChange={(e) => update({ parameters: { ...draft.parameters, seed: Number(e.target.value) } })} /></Field>
+      </fieldset>
+    </ModuleParameterRail>}>
       <OptionalModuleColumn label="音色设计模块状态">
         {module && <ModuleInstallPanel module={module} onDetect={async () => { await api.detectModule("voice_design"); await props.onModulesChanged(); }} onInstall={async (repair) => { await api.installModule("voice_design", repair); await props.onModulesChanged(); props.onMessage("安装已在后台开始，可以继续使用其他模块。", "success"); }} />}
+        <VoiceAssetLibrary voices={props.voices} onChanged={props.onResourcesChanged} onMessage={props.onMessage} locked={!canEdit} />
+      </OptionalModuleColumn>
+
+      <OptionalModuleColumn label="音色提示词与试听台词">
         <Section title="设计方法" eyebrow="VOICE BLUEPRINT">
           <div className={styles.sectionBody}>
             <div className={styles.modeSwitch}>
@@ -202,9 +218,6 @@ export function VoiceDesignWorkbench(props: Props) {
             <p>组合器只生成预览，只有点击“应用到提示词”才会覆盖最终提示词。</p>
           </div>
         </Section>
-      </OptionalModuleColumn>
-
-      <OptionalModuleColumn label="音色提示词与试听台词">
         <Section title="音色提示词组合器" eyebrow="PROMPT COMPOSER" actions={<Badge tone="accent">8 个维度</Badge>}>
           <fieldset className={styles.composerGrid} disabled={!canEdit || draft.mode !== "composer"}>
             {(Object.keys(OPTIONS) as Array<keyof VoicePromptComposer>).map((key) => <Field key={key} label={LABELS[key]} compact><Select value={draft.composer[key]} onChange={(event) => updateComposer(key, event.target.value)}>{OPTIONS[key].map((option) => <option key={option}>{option}</option>)}</Select></Field>)}
@@ -220,31 +233,22 @@ export function VoiceDesignWorkbench(props: Props) {
       </OptionalModuleColumn>
 
       <OptionalModuleColumn label="音色生成与设计历史">
-        <Section title="生成试听音色" eyebrow="VOICE RENDER" actions={<Badge tone={module?.installed ? "success" : "neutral"}>{module?.installed ? "准备就绪" : "预览"}</Badge>}>
+        <ModuleGenerateCard actions={<Badge tone={module?.installed ? "success" : "neutral"}>{module?.installed ? "准备就绪" : "预览"}</Badge>}>
           <div className={styles.generateBody}>
             <Button className={styles.generateButton} variant="primary" icon={<Sparkles size={17} />} disabled={!canEdit || Boolean(activeTask) || !draft.text.trim() || !draft.instruction.trim()} onClick={generate}>{activeTask ? "任务进行中" : "生成试听音色"}</Button>
             {activeTask && <div className={styles.activeTask}><Progress value={activeTask.progress} label="音色设计进度" /><span>{activeTask.message}</span><Button variant="ghost" icon={<Square size={13} />} onClick={() => api.cancelTask(activeTask.id)}>安全停止</Button></div>}
-            <button className={styles.advancedToggle} disabled={!canEdit} onClick={() => setAdvancedOpen((value) => !value)}><span>高级参数</span><small>官方推荐参数</small>{advancedOpen ? <ChevronUp size={15} /> : <ChevronDown size={15} />}</button>
-            {advancedOpen && <fieldset className={styles.parameterGrid} disabled={!canEdit}>
-              <Field label="Temperature"><TextInput type="number" step="0.1" min="0.1" max="3" value={draft.parameters.audio_temperature} onChange={(e) => update({ parameters: { ...draft.parameters, audio_temperature: Number(e.target.value) } })} /></Field>
-              <Field label="Top-P"><TextInput type="number" step="0.05" min="0.1" max="1" value={draft.parameters.audio_top_p} onChange={(e) => update({ parameters: { ...draft.parameters, audio_top_p: Number(e.target.value) } })} /></Field>
-              <Field label="Top-K"><TextInput type="number" min="1" max="200" value={draft.parameters.audio_top_k} onChange={(e) => update({ parameters: { ...draft.parameters, audio_top_k: Number(e.target.value) } })} /></Field>
-              <Field label="重复惩罚"><TextInput type="number" step="0.05" min="0.5" max="2" value={draft.parameters.audio_repetition_penalty} onChange={(e) => update({ parameters: { ...draft.parameters, audio_repetition_penalty: Number(e.target.value) } })} /></Field>
-              <Field label="最大 Tokens"><TextInput type="number" min="256" max="8192" step="128" value={draft.parameters.max_new_tokens} onChange={(e) => update({ parameters: { ...draft.parameters, max_new_tokens: Number(e.target.value) } })} /></Field>
-              <Field label="随机种子"><TextInput type="number" min="0" value={draft.parameters.seed} onChange={(e) => update({ parameters: { ...draft.parameters, seed: Number(e.target.value) } })} /></Field>
-            </fieldset>}
           </div>
-        </Section>
-        <Section title="当前试听" eyebrow="MONITOR" actions={selected && <Button className={styles.compactButton} variant="ghost" icon={<Save size={13} />} onClick={() => { setVoiceName(""); setSaveVoiceOpen(true); }}>保存为音色</Button>}>
+        </ModuleGenerateCard>
+        <ModuleCurrentOutput actions={selected && <Button className={styles.compactButton} variant="ghost" icon={<Save size={13} />} onClick={() => { setVoiceName(""); setSaveVoiceOpen(true); }}>保存为音色</Button>}>
           {selected ? <div className={styles.currentOutput}><div><span className={styles.outputMark}><AudioLines size={15} /></span><div><strong>{selected.filename}</strong><small>{selected.duration.toFixed(1)} 秒 · {selected.sample_rate / 1000} kHz · 原生 WAV</small></div></div><audio controls src={selected.artifact_url} /><div className={styles.outputActions}><Button variant="secondary" icon={<FolderOpen size={14} />} onClick={() => api.openArtifact(selected.id)}>打开目录</Button><a href={api.artifactUrl(selected.id, true)} download><Download size={14} />下载</a></div></div> : <EmptyState title="还没有试听结果" detail="生成完成后会先写入项目历史，再显示在这里。" />}
-        </Section>
-        <Section title="设计历史" eyebrow="VOICE DESIGN HISTORY" actions={<IconButton label="清除全部设计记录" disabled={!history.length && !tasks.length} onClick={async () => { if (!window.confirm("清除音色设计任务与历史记录吗？音频文件会保留。")) return; await api.clearActivity(project.id, false, "voice_design"); await refresh(); }}><BrushCleaning size={15} /></IconButton>}>
+        </ModuleCurrentOutput>
+        <ModuleActivityTimeline actions={<IconButton label="清除全部设计记录" disabled={!history.length && !tasks.length} onClick={async () => { if (!window.confirm("清除音色设计任务与历史记录吗？音频文件会保留。")) return; await api.clearActivity(project.id, false, "voice_design"); await refresh(); }}><BrushCleaning size={15} /></IconButton>}>
           <div className={styles.historyList}>
             {tasks.filter((task) => task.status !== "completed" || !history.some((output) => output.task_id === task.id)).map((task) => <article key={task.id}><button onClick={() => task.status === "running" || task.status === "queued" ? undefined : undefined}><span>{task.message}</span><Badge tone={statusTone(task.status)}>{task.status}</Badge></button><Progress value={task.progress} label={task.message} /><IconButton label="移除此任务" onClick={() => api.removeTask(task.id)}><Trash2 size={13} /></IconButton></article>)}
             {history.map((output) => <button key={output.id} className={selected?.id === output.id ? styles.selectedHistory : ""} onClick={() => setSelected(output)}><FileAudio2 size={13} /><span><strong>{output.filename}</strong><small>{output.created_at.replace("T", " ")} · {output.duration.toFixed(1)} 秒</small></span><em>WAV</em></button>)}
             {!tasks.length && !history.length && <EmptyState title="暂无设计历史" detail="生成任务和试听结果会按时间保存在当前项目。" />}
           </div>
-        </Section>
+        </ModuleActivityTimeline>
       </OptionalModuleColumn>
     </OptionalModuleWorkbench>
     <Modal open={saveVoiceOpen} title="保存到共享音色库" onClose={() => setSaveVoiceOpen(false)} footer={<><Button variant="ghost" onClick={() => setSaveVoiceOpen(false)}>取消</Button><Button variant="primary" icon={<Save size={15} />} disabled={!voiceName.trim()} onClick={async () => { if (!selected) return; await api.saveDesignedVoice(selected.id, voiceName.trim()); await props.onResourcesChanged(); setSaveVoiceOpen(false); props.onMessage("设计音色已保存到共享音色库。", "success"); }}>保存音色</Button></>}><Field label="音色名称" help="保存后可立即在语音合成模块中选择。"><TextInput autoFocus value={voiceName} onChange={(event) => setVoiceName(event.target.value)} placeholder="例如：沉稳纪录片男声" /></Field></Modal>

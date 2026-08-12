@@ -34,7 +34,7 @@ export function ModuleTabs({ modules, beforeNavigate }: { modules: ModuleDescrip
           >
             <Icon size={15} />
             <span>{descriptor?.name || (id === "speech" ? "语音合成" : id === "voice_design" ? "音色设计" : "音效生成")}</span>
-            {id !== "speech" && <i className={descriptor?.installed ? styles.installedDot : styles.optionalDot} />}
+            <i className={descriptor?.installed ? styles.installedDot : styles.optionalDot} />
           </button>
         );
       })}

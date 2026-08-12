@@ -22,6 +22,7 @@
 .advancedToggle span { font-size: 10px; font-weight: 700; }
 .advancedToggle small { color: var(--text-muted); font-size: 9px; text-align: end; }
 .parameterGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; border: 0; margin: 0; padding: 0; }
+.railParameterGrid { display: grid; grid-template-columns: repeat(6, minmax(120px, 1fr)); gap: 10px; border: 0; margin: 0; padding: 0; }
 .compactButton { min-height: 28px; padding: 3px 8px; font-size: 9px; }
 .currentOutput { display: grid; gap: 9px; padding: 12px; }
 .currentOutput > div:first-child { min-width: 0; display: flex; align-items: center; gap: 8px; }

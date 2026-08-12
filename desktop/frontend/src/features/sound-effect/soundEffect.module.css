@@ -15,6 +15,7 @@
 .expandButton { width: 30px; height: 30px; display: grid; place-items: center; border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--text-muted); }
 .expandButton:hover { background: var(--surface-hover); color: var(--text-primary); }
 .parameterGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; border: 0; margin: 0; padding: 12px; }
+.railParameterGrid { display: grid; grid-template-columns: repeat(4, minmax(150px, 1fr)); gap: 10px; border: 0; margin: 0; padding: 0; }
 .collapsedHint { padding: 13px 14px; color: var(--text-muted); font-size: 9px; }
 .previewAsset { min-width: 0; display: flex; align-items: center; gap: 9px; padding: 12px; }
 .previewAsset > span { width: 36px; height: 36px; flex: none; display: grid; place-items: center; border-radius: var(--radius-sm); background: var(--accent-soft); color: var(--accent); }
@@ -33,7 +34,7 @@
 .assetList strong { font-size: 10px; }
 .assetList small { color: var(--text-muted); font-size: 8px; }
 .assetList em { color: var(--text-muted); font: normal 700 8px var(--font-mono); }
-.specs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1px; margin: 0; padding: 12px; background: var(--border-subtle); }
+.specs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1px; margin: 0; padding: 0; background: var(--border-subtle); }
 .specs div { min-width: 0; display: grid; gap: 3px; padding: 10px; background: var(--surface-sunken); }
 .specs dt { color: var(--text-muted); font-size: 9px; }
 .specs dd { margin: 0; overflow-wrap: anywhere; color: var(--text-primary); font-size: 10px; font-weight: 700; }
