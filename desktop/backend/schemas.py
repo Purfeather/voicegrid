@@ -31,7 +31,8 @@ class WorkspaceDraft(BaseModel):
     language: str = "Chinese"
     style: str = "自然影视"
     instruction: str = Field(default="", max_length=2000)
-    natural_speed: float = Field(default=1.0, ge=0.7, le=1.35)
+    target_duration_enabled: bool = False
+    target_duration_seconds: int = Field(default=10, ge=1, le=120)
     preset: Literal["标准", "兼容"] = "标准"
     parameters: SynthesisParameters = Field(default_factory=SynthesisParameters)
     reference_id: str | None = None
@@ -39,6 +40,16 @@ class WorkspaceDraft(BaseModel):
     reference_trim_start: float = Field(default=0.0, ge=0)
     reference_trim_end: float | None = Field(default=None, gt=0)
     output_profile: OutputProfile = Field(default_factory=OutputProfile)
+
+    @model_validator(mode="before")
+    @classmethod
+    def migrate_legacy_speed(cls, value):
+        if isinstance(value, dict):
+            value = dict(value)
+            value.pop("natural_speed", None)
+            value.setdefault("target_duration_enabled", False)
+            value.setdefault("target_duration_seconds", 10)
+        return value
 
     @model_validator(mode="after")
     def validate_reference(self):

@@ -39,9 +39,19 @@
 .scriptColumn { min-width: 0; min-height: 0; display: grid; grid-template-rows: auto minmax(260px, 1fr) minmax(150px, .62fr); gap: 8px; overflow: hidden; }
 .directionSection, .editorSection, .segmentSection { min-height: 0; }
 .directionGrid { display: grid; grid-template-columns: minmax(110px, .65fr) minmax(180px, 1.2fr) minmax(160px, .8fr); gap: 8px; padding: 10px 12px 0; }
-.speedField, .rangeWithValue { min-width: 0; height: 36px; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 8px; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); padding: 0 9px; background: var(--surface-sunken); }
-.speedField input, .rangeWithValue input { min-width: 0; width: 100%; accent-color: var(--accent); }
-.speedField strong, .rangeWithValue strong { color: var(--text-secondary); font: 600 10px var(--font-mono); white-space: nowrap; }
+.rangeWithValue { min-width: 0; height: 36px; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 8px; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); padding: 0 9px; background: var(--surface-sunken); }
+.rangeWithValue input { min-width: 0; width: 100%; accent-color: var(--accent); }
+.rangeWithValue strong { color: var(--text-secondary); font: 600 10px var(--font-mono); white-space: nowrap; }
+.durationField { min-width: 0; height: 36px; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 7px; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); padding: 0 8px; background: var(--surface-sunken); }
+.durationField input { min-width: 0; width: 100%; height: 26px; border: 0; outline: 0; background: transparent; color: var(--text-primary); font: 600 11px var(--font-mono); }
+.durationField input:disabled { color: var(--text-muted); cursor: not-allowed; }
+.durationField input::placeholder { color: var(--text-muted); opacity: 1; }
+.durationField strong { color: var(--text-muted); font: 600 10px var(--font-mono); }
+.durationSwitch { position: relative; width: 30px; height: 18px; border: 1px solid var(--border-strong); border-radius: 99px; padding: 0; background: var(--surface-raised); transition: background var(--motion-fast), border-color var(--motion-fast); }
+.durationSwitch span { position: absolute; inset-block-start: 3px; inset-inline-start: 3px; width: 10px; height: 10px; border-radius: 50%; background: var(--text-muted); transition: transform var(--motion-fast), background var(--motion-fast); }
+.durationSwitchOn { border-color: var(--accent); background: var(--accent-soft); }
+.durationSwitchOn span { transform: translateX(12px); background: var(--accent); }
+.durationSwitch:disabled { opacity: .45; cursor: not-allowed; }
 .instructionRow { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; padding: 8px 12px 12px; }
 .instructionRow textarea { min-height: 74px; resize: none; }
 .styleActions { width: 172px; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px; align-content: start; }

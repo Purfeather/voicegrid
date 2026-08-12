@@ -91,7 +91,8 @@ export interface WorkspaceDraft {
   language: string;
   style: string;
   instruction: string;
-  natural_speed: number;
+  target_duration_enabled: boolean;
+  target_duration_seconds: number;
   preset: "标准" | "兼容";
   parameters: SynthesisParameters;
   reference_id: string | null;

@@ -6,7 +6,7 @@ from concurrent.futures import Future, ThreadPoolExecutor
 from pathlib import Path
 from typing import Any
 
-from app.model_engine import ENGINE, TaskCancelled
+from app.model_engine import ENGINE, TaskCancelled, split_text
 
 from .audio import prepare_trimmed_reference
 from .events import EVENTS
@@ -24,16 +24,9 @@ from .repository import (
 )
 
 
-def _speed_instruction(speed: float) -> str:
-    if speed <= .78:
-        return "整体语速明显放慢，延长自然停连与句间呼吸，但不要拖字。"
-    if speed <= .9:
-        return "整体语速稍慢，表达从容，停连自然。"
-    if speed < 1.1:
-        return "保持自然生活化语速，避免机械匀速。"
-    if speed < 1.23:
-        return "整体语速稍快，衔接紧凑但吐字仍然清楚。"
-    return "整体语速明显加快，减少非必要停顿，但不要抢字或含混。"
+def duration_to_tokens(seconds: int | float) -> int:
+    """Convert seconds to the model's 12.5 Hz duration-control frames."""
+    return max(1, int(float(seconds) * 12.5 + .5))
 
 
 class TaskService:
@@ -96,10 +89,17 @@ class TaskService:
                 reference_path = prepare_trimmed_reference(source_reference, float(workspace.get("reference_trim_start") or 0), workspace.get("reference_trim_end"))
                 if reference_path != source_reference:
                     temporary_reference = reference_path
-            instruction = "；".join(part for part in (str(workspace.get("instruction") or "").strip(), _speed_instruction(float(workspace.get("natural_speed", 1.0)))) if part)
+            instruction = str(workspace.get("instruction") or "").strip()
+            target_tokens = None
+            if bool(workspace.get("target_duration_enabled")):
+                segments = split_text(workspace["text"], int(workspace["parameters"]["segment_chars"]))
+                if len(segments) != 1:
+                    raise ValueError("目标时长仅支持单段文本，请调整文本或每段最大字符数。")
+                target_tokens = duration_to_tokens(int(workspace.get("target_duration_seconds", 10)))
             model_payload = {
                 "text": workspace["text"], "language": workspace.get("language", "Chinese"), "instruction": instruction,
                 "parameters": workspace["parameters"], "reference_path": str(reference_path) if reference_path else None,
+                "target_tokens": target_tokens,
             }
             raw = ENGINE.synthesize(model_payload, progress, lambda: cancel_requested(task_id))
             temporary_raw = Path(raw["source_path"])

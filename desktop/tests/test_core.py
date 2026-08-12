@@ -15,6 +15,7 @@ from desktop.backend import output_engineering, repository
 from desktop.backend.database import Database
 from desktop.backend.defaults import PARAMETER_PRESETS
 from desktop.backend.schemas import WorkspaceDraft
+from desktop.backend.task_service import duration_to_tokens
 
 
 def sine(sample_rate: int, seconds: float) -> np.ndarray:
@@ -131,6 +132,21 @@ class AudioOutputTests(unittest.TestCase):
 
 
 class ModelContractTests(unittest.TestCase):
+    def test_duration_control_token_conversion(self) -> None:
+        self.assertEqual(duration_to_tokens(1), 13)
+        self.assertEqual(duration_to_tokens(10), 125)
+        self.assertEqual(duration_to_tokens(120), 1500)
+
+    def test_legacy_speed_migrates_to_automatic_duration(self) -> None:
+        payload = repository.default_workspace("Chinese", Path("outputs"))
+        payload.pop("target_duration_enabled")
+        payload.pop("target_duration_seconds")
+        payload["natural_speed"] = 1.2
+        workspace = WorkspaceDraft.model_validate(payload)
+        self.assertFalse(workspace.target_duration_enabled)
+        self.assertEqual(workspace.target_duration_seconds, 10)
+        self.assertNotIn("natural_speed", workspace.model_dump())
+
     def test_standard_and_compatibility_baselines(self) -> None:
         self.assertEqual(PARAMETER_PRESETS["标准"]["segment_chars"], 400)
         self.assertEqual(PARAMETER_PRESETS["标准"]["max_seconds"], 120)

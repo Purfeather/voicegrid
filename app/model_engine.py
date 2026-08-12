@@ -262,7 +262,11 @@ class ModelEngine:
 
             self._activate_model()
             generated_batches = []
-            max_new_tokens = max(25, int(float(parameters["max_seconds"]) * 12.5))
+            target_tokens = payload.get("target_tokens")
+            if target_tokens is not None and len(segments) != 1:
+                raise ValueError("目标时长仅支持单段文本。")
+            base_frame_budget = max(25, int(float(parameters["max_seconds"]) * 12.5))
+            max_new_tokens = max(base_frame_budget, int(target_tokens) + 32) if target_tokens is not None else base_frame_budget
             for index, segment in enumerate(segments):
                 if should_cancel():
                     raise TaskCancelled("已在上一文本段结束后安全停止。")
@@ -272,6 +276,7 @@ class ModelEngine:
                     reference=[reference_codes] if reference_codes is not None else None,
                     language=payload.get("language") or None,
                     instruction=payload.get("instruction") or None,
+                    tokens=int(target_tokens) if target_tokens is not None else None,
                 )
                 batch = self.processor([[message]], mode="generation")
                 input_ids = batch["input_ids"].to(self.device)

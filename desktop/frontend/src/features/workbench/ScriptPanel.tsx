@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AlignLeft, BookmarkPlus, Languages, Lock, Scissors, Sparkles, Trash2, X } from "lucide-react";
 import type { StylePreset, WorkspaceDraft } from "../../types";
 import { api } from "../../services/api";
@@ -20,6 +20,13 @@ export function ScriptPanel({ workspace, stylesList, languages, onWorkspace, onS
   const segments = useMemo(() => splitText(workspace.text, workspace.parameters.segment_chars), [workspace.text, workspace.parameters.segment_chars]);
   const selectedStyle = stylesList.find((style) => style.name === workspace.style);
   const count = workspace.text.trim().length;
+
+  useEffect(() => {
+    if (workspace.target_duration_enabled && segments.length !== 1) {
+      onWorkspace({ target_duration_enabled: false });
+      onMessage("目标时长仅支持单段文本，已自动关闭。", "error");
+    }
+  }, [segments.length, workspace.target_duration_enabled]);
 
   function selectStyle(name: string) {
     const style = stylesList.find((item) => item.name === name);
@@ -55,7 +62,32 @@ export function ScriptPanel({ workspace, stylesList, languages, onWorkspace, onS
         <div className={styles.directionGrid}>
           <Field label="语言" compact><Select value={workspace.language} onChange={(event) => onWorkspace({ language: event.target.value })}>{languages.map((language) => <option key={language.value} value={language.value}>{language.label}</option>)}</Select></Field>
           <Field label="风格 / 情感预设" compact><Select value={workspace.style} onChange={(event) => selectStyle(event.target.value)}>{stylesList.map((style) => <option key={style.name} value={style.name}>{style.name}{style.built_in ? "" : " · 自定义"}</option>)}</Select></Field>
-          <Field label="自然语速" compact><div className={styles.speedField}><input type="range" min={.7} max={1.35} step={.05} value={workspace.natural_speed} onChange={(event) => onWorkspace({ natural_speed: Number(event.target.value) })} /><strong>{workspace.natural_speed.toFixed(2)}×</strong></div></Field>
+          <Field label="目标时长" compact>
+            <div className={styles.durationField}>
+              <button
+                type="button"
+                className={`${styles.durationSwitch} ${workspace.target_duration_enabled ? styles.durationSwitchOn : ""}`}
+                role="switch"
+                aria-checked={workspace.target_duration_enabled}
+                aria-label="启用目标时长"
+                disabled={segments.length !== 1}
+                title={segments.length !== 1 ? "目标时长仅支持单段文本" : ""}
+                onClick={() => onWorkspace({ target_duration_enabled: !workspace.target_duration_enabled })}
+              ><span /></button>
+              <input
+                type="number"
+                min={1}
+                max={120}
+                step={1}
+                disabled={!workspace.target_duration_enabled}
+                value={workspace.target_duration_enabled ? workspace.target_duration_seconds : ""}
+                placeholder="自动"
+                aria-label="目标时长（秒）"
+                onChange={(event) => onWorkspace({ target_duration_seconds: Math.max(1, Math.min(120, Number(event.target.value) || 1)) })}
+              />
+              <strong>秒</strong>
+            </div>
+          </Field>
         </div>
         <div className={styles.instructionRow}>
           <TextArea aria-label="风格和情感提示" rows={3} value={workspace.instruction} onChange={(event) => onWorkspace({ instruction: event.target.value })} placeholder="描述声音状态、语气、节奏、情绪推进和停顿方式…" />
