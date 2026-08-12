@@ -19,6 +19,7 @@ from desktop.backend.schemas import ModuleTaskCreate, ProjectPatch, SoundEffectD
 from desktop.workers.module_downloader import manifest_digest, verify_install_manifest
 from desktop.workers.runtime_audio_probe import probe_pcm24
 from desktop.workers.audio_io import write_pcm24_wav
+from desktop.workers.voice_generator_worker import native_bf16_available
 from desktop.backend.task_service import _next_output_index, build_generation_snapshot, estimate_speed_tokens
 
 
@@ -308,6 +309,11 @@ class ModelContractTests(unittest.TestCase):
         self.assertEqual(parameters.audio_top_k, 50)
         self.assertEqual(parameters.audio_repetition_penalty, 1.1)
         self.assertEqual(parameters.max_new_tokens, 4096)
+
+    def test_voice_generator_rejects_emulated_bf16_on_turing(self) -> None:
+        self.assertFalse(native_bf16_available((7, 5), True))
+        self.assertFalse(native_bf16_available((8, 0), False))
+        self.assertTrue(native_bf16_available((8, 0), True))
 
     def test_model_lock_contracts_are_stable(self) -> None:
         self.assertEqual(MODEL_LOCKS["openmoss/MOSS-VoiceGenerator"]["file_count"], 17)

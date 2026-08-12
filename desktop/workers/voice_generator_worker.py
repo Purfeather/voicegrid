@@ -23,6 +23,11 @@ def emit(event: str, **payload) -> None:
     sys.stdout.flush()
 
 
+def native_bf16_available(capability: tuple[int, int], reported_support: bool) -> bool:
+    """Reject software-emulated BF16 on pre-Ampere NVIDIA devices."""
+    return int(capability[0]) >= 8 and bool(reported_support)
+
+
 class VoiceGeneratorWorker:
     def __init__(self, model_path: Path, codec_path: Path) -> None:
         self.model_path = model_path
@@ -50,7 +55,12 @@ class VoiceGeneratorWorker:
         torch.backends.cuda.enable_flash_sdp(True)
         torch.backends.cuda.enable_mem_efficient_sdp(True)
         torch.backends.cuda.enable_math_sdp(True)
-        dtype = torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float16
+        capability = tuple(int(value) for value in torch.cuda.get_device_capability())
+        try:
+            reported_bf16 = bool(torch.cuda.is_bf16_supported(including_emulation=False))
+        except TypeError:
+            reported_bf16 = bool(torch.cuda.is_bf16_supported())
+        dtype = torch.bfloat16 if native_bf16_available(capability, reported_bf16) else torch.float16
         self.dtype_name = "bfloat16" if dtype == torch.bfloat16 else "float16"
         emit("progress", progress=0.12, message="正在载入 MOSS 音频分词器")
         processor_kwargs = {

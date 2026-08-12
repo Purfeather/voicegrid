@@ -6,7 +6,24 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[2]
-SKIP_DIRS = {".venv", ".rebuild-cache", "__pycache__", "archive", "cache", "design-system", "dist", "LICENSES", "logs", "models", "node_modules", "outputs", "projects", "references"}
+SKIP_DIRS = {
+    ".venv",
+    ".rebuild-cache",
+    "__pycache__",
+    "archive",
+    "cache",
+    "design-system",
+    "dist",
+    "LICENSES",
+    "logs",
+    "models",
+    "node_modules",
+    "optional-models",
+    "outputs",
+    "projects",
+    "references",
+    "runtimes",
+}
 TEXT_EXTENSIONS = {".css", ".html", ".js", ".json", ".jsx", ".log", ".md", ".py", ".ts", ".tsx", ".txt"}
 
 
