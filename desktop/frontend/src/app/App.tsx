@@ -241,6 +241,9 @@ export function App() {
         <TitleBar runtime={runtime.data} metrics={metrics.data} theme={theme} onTheme={setTheme} startupMode={criticalPending} onRelease={releaseRuntime} />
         <ProjectCenter
           projects={projects.data}
+          modules={modules.data}
+          modulesLoading={modules.status === "idle" || modules.status === "loading"}
+          modulesError={modules.error}
           loading={projects.status === "idle" || projects.status === "loading"}
           error={projects.error}
           onRetry={() => { void refreshProjects(); }}

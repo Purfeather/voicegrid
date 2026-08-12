@@ -7,10 +7,16 @@
 .hero h1 em { color: var(--text-muted); font-style: normal; font-weight: 500; }
 .hero p { max-width: 670px; margin: 22px 0 26px; color: var(--text-secondary); font-size: 15px; line-height: 1.8; }
 .heroSystem { display: grid; gap: 1px; overflow: hidden; border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); background: var(--border-subtle); }
-.heroSystem div { min-width: 0; display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 2px 10px; padding: 14px; background: var(--surface-panel); }
-.heroSystem svg { grid-row: span 2; color: var(--accent); }
-.heroSystem span { color: var(--text-muted); font-size: 10px; }
-.heroSystem strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
+.moduleOverviewHeader { min-width: 0; display: grid; gap: 3px; padding: 12px 14px; background: var(--surface-raised); }
+.moduleOverviewHeader span { color: var(--accent); font: 700 8px var(--font-mono); letter-spacing: .11em; }
+.moduleOverviewHeader strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; }
+.moduleOverviewRow { min-width: 0; display: grid; grid-template-columns: 32px minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 11px 12px; background: var(--surface-panel); }
+.moduleOverviewIcon { width: 32px; height: 32px; display: grid; place-items: center; border-radius: var(--radius-sm); background: var(--accent-soft); color: var(--accent); }
+.moduleOverviewCopy { min-width: 0; display: grid; gap: 2px; }
+.moduleOverviewCopy strong, .moduleOverviewCopy small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.moduleOverviewCopy strong { font-size: 11px; }
+.moduleOverviewCopy small { color: var(--text-muted); font-size: 9px; }
+.moduleOverviewRow > span:last-child { max-width: 92px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .projectsSection { max-width: 1360px; margin: 0 auto; }
 .startupNotice { margin-bottom: 16px; }
@@ -62,6 +68,8 @@
 @media (max-width: 1180px) {
   .projectGrid, .loadingGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .hero { grid-template-columns: 1fr 330px; }
+  .moduleOverviewRow { gap: 8px; padding-inline: 10px; }
+  .moduleOverviewCopy small { font-size: 8px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

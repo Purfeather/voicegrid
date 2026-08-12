@@ -32,3 +32,4 @@
 .installConfirm p { margin: 0; line-height: 1.6; }
 .installConfirm ul { margin: 0; padding-inline-start: 20px; color: var(--text-secondary); font: 10px/1.7 var(--font-mono); overflow-wrap: anywhere; }
 @media (max-width: 1120px) { .moduleTabs > button { min-width: 104px; padding-inline: 10px; } .moduleHint { display: none; } }
+@media (max-width: 1080px) { .installActions { grid-template-columns: 1fr; } }

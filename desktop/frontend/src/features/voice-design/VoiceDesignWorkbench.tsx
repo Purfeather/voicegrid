@@ -7,6 +7,7 @@ import { TitleBar } from "../../components/TitleBar";
 import { Badge, Button, EmptyState, Field, IconButton, Modal, Progress, Section, Select, TextArea, TextInput } from "../../components/UI";
 import { ModuleTabs } from "../modules/ModuleTabs";
 import { ModuleInstallPanel } from "../modules/ModuleInstallPanel";
+import { OptionalModuleColumn, OptionalModuleWorkbench } from "../modules/OptionalModuleWorkbench";
 import styles from "./voiceDesign.module.css";
 
 interface Props {
@@ -189,8 +190,8 @@ export function VoiceDesignWorkbench(props: Props) {
   return <>
     <TitleBar projectName={project.name} saveState={canEdit ? saveState : "预览模式 · 未保存"} runtime={props.runtime} metrics={props.metrics} theme={props.theme} onTheme={props.onTheme} onBack={closeProject} onRelease={async () => props.onRuntime(await api.releaseRuntime())} />
     <ModuleTabs modules={props.modules} beforeNavigate={saveBeforeModuleSwitch} />
-    <main className={styles.workspace}>
-      <div className={styles.column}>
+    <OptionalModuleWorkbench label="音色设计工作台">
+      <OptionalModuleColumn label="音色设计模块状态">
         {module && <ModuleInstallPanel module={module} onDetect={async () => { await api.detectModule("voice_design"); await props.onModulesChanged(); }} onInstall={async (repair) => { await api.installModule("voice_design", repair); await props.onModulesChanged(); props.onMessage("安装已在后台开始，可以继续使用其他模块。", "success"); }} />}
         <Section title="设计方法" eyebrow="VOICE BLUEPRINT">
           <div className={styles.sectionBody}>
@@ -201,9 +202,9 @@ export function VoiceDesignWorkbench(props: Props) {
             <p>组合器只生成预览，只有点击“应用到提示词”才会覆盖最终提示词。</p>
           </div>
         </Section>
-      </div>
+      </OptionalModuleColumn>
 
-      <div className={styles.column}>
+      <OptionalModuleColumn label="音色提示词与试听台词">
         <Section title="音色提示词组合器" eyebrow="PROMPT COMPOSER" actions={<Badge tone="accent">8 个维度</Badge>}>
           <fieldset className={styles.composerGrid} disabled={!canEdit || draft.mode !== "composer"}>
             {(Object.keys(OPTIONS) as Array<keyof VoicePromptComposer>).map((key) => <Field key={key} label={LABELS[key]} compact><Select value={draft.composer[key]} onChange={(event) => updateComposer(key, event.target.value)}>{OPTIONS[key].map((option) => <option key={option}>{option}</option>)}</Select></Field>)}
@@ -216,9 +217,9 @@ export function VoiceDesignWorkbench(props: Props) {
         <Section title="试听台词" eyebrow="AUDITION SCRIPT">
           <div className={styles.editorBody}><TextArea rows={5} disabled={!canEdit} value={draft.text} onChange={(event) => update({ text: event.target.value })} /><span className={styles.counter}>{draft.text.length} 字</span></div>
         </Section>
-      </div>
+      </OptionalModuleColumn>
 
-      <div className={styles.column}>
+      <OptionalModuleColumn label="音色生成与设计历史">
         <Section title="生成试听音色" eyebrow="VOICE RENDER" actions={<Badge tone={module?.installed ? "success" : "neutral"}>{module?.installed ? "准备就绪" : "预览"}</Badge>}>
           <div className={styles.generateBody}>
             <Button className={styles.generateButton} variant="primary" icon={<Sparkles size={17} />} disabled={!canEdit || Boolean(activeTask) || !draft.text.trim() || !draft.instruction.trim()} onClick={generate}>{activeTask ? "任务进行中" : "生成试听音色"}</Button>
@@ -244,8 +245,8 @@ export function VoiceDesignWorkbench(props: Props) {
             {!tasks.length && !history.length && <EmptyState title="暂无设计历史" detail="生成任务和试听结果会按时间保存在当前项目。" />}
           </div>
         </Section>
-      </div>
-    </main>
+      </OptionalModuleColumn>
+    </OptionalModuleWorkbench>
     <Modal open={saveVoiceOpen} title="保存到共享音色库" onClose={() => setSaveVoiceOpen(false)} footer={<><Button variant="ghost" onClick={() => setSaveVoiceOpen(false)}>取消</Button><Button variant="primary" icon={<Save size={15} />} disabled={!voiceName.trim()} onClick={async () => { if (!selected) return; await api.saveDesignedVoice(selected.id, voiceName.trim()); await props.onResourcesChanged(); setSaveVoiceOpen(false); props.onMessage("设计音色已保存到共享音色库。", "success"); }}>保存音色</Button></>}><Field label="音色名称" help="保存后可立即在语音合成模块中选择。"><TextInput autoFocus value={voiceName} onChange={(event) => setVoiceName(event.target.value)} placeholder="例如：沉稳纪录片男声" /></Field></Modal>
   </>;
 }

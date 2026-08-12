@@ -1,11 +1,14 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { Clock3, FolderOpen, Plus, RotateCcw, Search, Sparkles, Trash2, Waves } from "lucide-react";
-import type { ProjectSummary } from "../../types";
+import { AudioLines, Clock3, FolderOpen, MicVocal, Plus, RotateCcw, Search, Sparkles, Trash2, Waves } from "lucide-react";
+import type { ModuleDescriptor, ModuleId, ProjectSummary } from "../../types";
 import { Badge, Button, EmptyState, Field, Modal, Select, TextInput } from "../../components/UI";
 import styles from "./projectCenter.module.css";
 
 interface Props {
   projects: ProjectSummary[];
+  modules: ModuleDescriptor[];
+  modulesLoading: boolean;
+  modulesError: string;
   loading: boolean;
   error: string;
   startupNotice?: ReactNode;
@@ -15,7 +18,23 @@ interface Props {
   onDelete: (id: string) => Promise<void>;
 }
 
-export function ProjectCenter({ projects, loading, error, startupNotice, onRetry, onCreate, onOpen, onDelete }: Props) {
+const MODULE_OVERVIEW: Array<{ id: ModuleId; label: string; purpose: string; icon: typeof MicVocal }> = [
+  { id: "speech", label: "语音合成", purpose: "参考音色、情感与长文本配音", icon: MicVocal },
+  { id: "voice_design", label: "音色设计", purpose: "从文字描述创建可复用音色", icon: Sparkles },
+  { id: "sound_effect", label: "音效生成", purpose: "从场景描述生成项目音效", icon: AudioLines },
+];
+
+function moduleState(module: ModuleDescriptor | undefined, loading: boolean, failed: boolean) {
+  if (loading) return { label: "正在检测", tone: "neutral" as const };
+  if (failed || !module) return { label: "状态不可用", tone: "neutral" as const };
+  if (module.install_state === "installing") return { label: `安装中 ${Math.round(module.install_progress * 100)}%`, tone: "warning" as const };
+  if (module.install_state === "repair_required" || module.install_state === "failed") return { label: "需要修复", tone: "warning" as const };
+  if (module.installed && module.engine_available) return { label: "已就绪", tone: "success" as const };
+  if (module.installed) return { label: "模型已安装", tone: "neutral" as const };
+  return { label: "可选安装", tone: "neutral" as const };
+}
+
+export function ProjectCenter({ projects, modules, modulesLoading, modulesError, loading, error, startupNotice, onRetry, onCreate, onOpen, onDelete }: Props) {
   const [query, setQuery] = useState("");
   const [modalOpen, setModalOpen] = useState(false);
   const [name, setName] = useState("");
@@ -24,7 +43,6 @@ export function ProjectCenter({ projects, loading, error, startupNotice, onRetry
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [showSkeleton, setShowSkeleton] = useState(false);
   const [showStage, setShowStage] = useState(false);
-
   useEffect(() => {
     if (!loading) { setShowSkeleton(false); setShowStage(false); return; }
     const skeletonTimer = window.setTimeout(() => setShowSkeleton(true), 300);
@@ -69,10 +87,16 @@ export function ProjectCenter({ projects, loading, error, startupNotice, onRetry
           <p>从参考音色与情感设计，到文本切分、批量生成和成品交付，一站完成专业 AI 配音制作。</p>
           <Button variant="primary" icon={<Plus size={17} />} onClick={() => setModalOpen(true)}>新建配音项目</Button>
         </div>
-        <div className={styles.heroSystem} aria-label="工作台能力">
-          <div><Sparkles size={18} /><span>激活引擎</span><strong>MOSS-TTS 1.5 · 4B</strong></div>
-          <div><Waves size={18} /><span>默认生成基线</span><strong>400 字 · 120 秒</strong></div>
-          <div><RotateCcw size={18} /><span>项目保护</span><strong>自动保存与恢复</strong></div>
+        <div className={styles.heroSystem} aria-label="项目制作模块状态">
+          <header className={styles.moduleOverviewHeader}><span>PROJECT MODULES</span><strong>三种制作能力，共享同一项目</strong></header>
+          {MODULE_OVERVIEW.map(({ id, label, purpose, icon: Icon }) => {
+            const state = moduleState(modules.find((item) => item.id === id), modulesLoading, Boolean(modulesError));
+            return <div className={styles.moduleOverviewRow} key={id}>
+              <span className={styles.moduleOverviewIcon}><Icon size={17} /></span>
+              <span className={styles.moduleOverviewCopy}><strong>{label}</strong><small>{purpose}</small></span>
+              <Badge tone={state.tone}>{state.label}</Badge>
+            </div>;
+          })}
         </div>
       </section>
 
