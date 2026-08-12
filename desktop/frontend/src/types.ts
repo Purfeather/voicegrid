@@ -1,4 +1,5 @@
 export type ThemeId = "dark" | "light";
+export type ModuleId = "speech" | "voice_design" | "sound_effect";
 
 export type StartupPhase = "shell" | "backend_import" | "database" | "project_recovery" | "api" | "frontend" | "ready" | "slow" | "failed";
 
@@ -115,7 +116,56 @@ export interface ProjectDetail extends ProjectSummary {
   created_at: string;
   revision: number;
   workspace: WorkspaceDraft;
+  workspaces: ProjectWorkspaces;
   history: OutputRecord[];
+}
+
+export interface VoicePromptComposer {
+  role: string;
+  age_gender: string;
+  texture: string;
+  pitch_strength: string;
+  pace_rhythm: string;
+  accent_language: string;
+  emotion: string;
+  performance: string;
+}
+
+export interface VoiceDesignParameters {
+  audio_temperature: number;
+  audio_top_p: number;
+  audio_top_k: number;
+  audio_repetition_penalty: number;
+  max_new_tokens: number;
+  seed: number;
+}
+
+export interface VoiceDesignDraft {
+  mode: "composer" | "freeform";
+  text: string;
+  composer: VoicePromptComposer;
+  prompt_preview: string;
+  instruction: string;
+  parameters: VoiceDesignParameters;
+}
+
+export interface SoundEffectParameters {
+  seconds: number;
+  num_inference_steps: number;
+  cfg_scale: number;
+  sigma_shift: number;
+  seed: number;
+}
+
+export interface SoundEffectDraft {
+  prompt: string;
+  parameters: SoundEffectParameters;
+}
+
+export interface ProjectWorkspaces {
+  speech: WorkspaceDraft;
+  voice_design: VoiceDesignDraft;
+  sound_effect: SoundEffectDraft;
 }
 
 export interface OutputRecord {
@@ -131,7 +181,10 @@ export interface OutputRecord {
   voice: string;
   text: string;
   artifact_url: string;
-  generation_snapshot?: GenerationSnapshot;
+  module: ModuleId;
+  kind: "speech_output" | "voice_design_output" | "sound_effect_output";
+  instruction?: string;
+  generation_snapshot?: GenerationSnapshot | VoiceDesignGenerationSnapshot;
 }
 
 export interface GenerationSnapshot {
@@ -145,6 +198,17 @@ export interface GenerationSnapshot {
   speed?: "自动" | SpeedLevel;
 }
 
+export interface VoiceDesignGenerationSnapshot {
+  mode: "composer" | "freeform";
+  composer: VoicePromptComposer;
+  prompt_preview: string;
+  instruction: string;
+  text: string;
+  parameters: VoiceDesignParameters;
+  model: string;
+  codec: string;
+}
+
 export type SpeedLevel = "慢" | "较慢" | "中等" | "较快" | "快";
 
 export type TaskStatus = "queued" | "running" | "completed" | "failed" | "cancelled" | "interrupted";
@@ -152,6 +216,7 @@ export type TaskStatus = "queued" | "running" | "completed" | "failed" | "cancel
 export interface TaskRecord {
   id: string;
   project_id: string;
+  module: ModuleId;
   status: TaskStatus;
   progress: number;
   message: string;
@@ -190,11 +255,49 @@ export interface HardwareMetrics {
 export interface RuntimeSnapshot {
   state: "idle" | "loading" | "loaded" | "running" | "releasing" | "error";
   active_model: string | null;
+  active_module?: ModuleId | null;
   message: string;
   device: string;
   dtype: string;
   attention: string;
   models: Array<{ key: string; name: string; version: string; installed: boolean; enabled: boolean }>;
+}
+
+export type ModuleInstallState = "not_installed" | "installing" | "repair_required" | "ready" | "failed";
+
+export interface ModelLock {
+  model_id: string;
+  revision: string;
+  file_count: number;
+  total_bytes: number;
+  manifest_sha256: string;
+}
+
+export interface ModuleDescriptor {
+  id: ModuleId;
+  name: string;
+  model_name: string;
+  model_id: string;
+  codec_id?: string;
+  description: string;
+  disk_gb: number;
+  download_gb: number;
+  required_disk_gb: number;
+  runtime_python: string;
+  installed: boolean;
+  model_ready: boolean;
+  runtime_ready: boolean;
+  install_state: ModuleInstallState;
+  install_phase: string;
+  install_progress: number;
+  install_message: string;
+  error: string;
+  missing: string[];
+  manual_paths: string[];
+  preview_available: boolean;
+  engine_available: boolean;
+  engine_message?: string;
+  model_locks: ModelLock[];
 }
 
 export interface CoreBootstrap {
@@ -233,9 +336,10 @@ export interface BootstrapPayload {
   runtime: RuntimeSnapshot;
   metrics: HardwareMetrics;
   languages: Array<{ value: string; label: string }>;
+  modules: ModuleDescriptor[];
 }
 
 export interface AppEvent {
-  type: "task.updated" | "task.removed" | "activity.cleared" | "runtime.updated" | "metrics.updated" | "project.saved";
+  type: "task.updated" | "task.removed" | "activity.cleared" | "runtime.updated" | "metrics.updated" | "project.saved" | "module.updated" | "voice.updated";
   payload: unknown;
 }

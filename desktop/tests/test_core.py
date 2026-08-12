@@ -14,8 +14,10 @@ from app.model_engine import split_text
 from desktop.backend import output_engineering, repository
 from desktop.backend.database import Database
 from desktop.backend.defaults import PARAMETER_PRESETS
-from desktop.backend.schemas import WorkspaceDraft
-from desktop.backend.task_service import build_generation_snapshot, estimate_speed_tokens
+from desktop.backend.module_service import MODEL_LOCKS, ModuleService, _model_complete
+from desktop.backend.schemas import ModuleTaskCreate, ProjectPatch, SoundEffectDraft, VoiceDesignDraft, WorkspaceDraft
+from desktop.workers.module_downloader import manifest_digest
+from desktop.backend.task_service import _next_output_index, build_generation_snapshot, estimate_speed_tokens
 
 
 def sine(sample_rate: int, seconds: float) -> np.ndarray:
@@ -24,6 +26,23 @@ def sine(sample_rate: int, seconds: float) -> np.ndarray:
 
 
 class RepositoryTests(unittest.TestCase):
+    def test_module_workspaces_save_independently(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            database = Database(root / "app.db")
+            database.initialize()
+            try:
+                with patch.object(repository, "DB", database), patch.object(repository, "PROJECTS_DIR", root / "projects"):
+                    created = repository.create_project("多模块项目", "Chinese")
+                    speech_text = created["workspaces"]["speech"]["text"]
+                    voice_design = VoiceDesignDraft.model_validate(created["workspaces"]["voice_design"])
+                    voice_design.instruction = "明亮而富有朝气的青年女声"
+                    saved = repository.save_project(created["id"], created["revision"], voice_design, "voice_design")
+                    self.assertEqual(saved["workspaces"]["voice_design"]["instruction"], voice_design.instruction)
+                    self.assertEqual(saved["workspaces"]["speech"]["text"], speech_text)
+            finally:
+                database.close()
+
     def test_legacy_project_is_migrated_when_opened(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -34,6 +53,8 @@ class RepositoryTests(unittest.TestCase):
                     created = repository.create_project("旧项目", "Chinese")
                     project_file = root / "projects" / created["id"] / "project.json"
                     payload = json.loads(project_file.read_text(encoding="utf-8"))
+                    payload["workspace"] = payload.pop("workspaces")["speech"]
+                    payload["schema_version"] = 3
                     payload["workspace"].pop("manual_speed_enabled")
                     payload["workspace"].pop("manual_speed_level")
                     payload["workspace"]["target_duration_enabled"] = True
@@ -209,6 +230,140 @@ class AudioOutputTests(unittest.TestCase):
 
 
 class ModelContractTests(unittest.TestCase):
+    def test_module_task_payload_is_discriminated_by_module(self) -> None:
+        voice_task = ModuleTaskCreate.model_validate({
+            "project_id": "project",
+            "module": "voice_design",
+            "workspace": {"text": "测试台词", "instruction": "温润而沉稳"},
+        })
+        self.assertIsInstance(voice_task.workspace, VoiceDesignDraft)
+        sound_task = ModuleTaskCreate.model_validate({
+            "project_id": "project",
+            "module": "sound_effect",
+            "workspace": {"prompt": "雨夜街道", "parameters": {"seconds": 12}},
+        })
+        self.assertIsInstance(sound_task.workspace, SoundEffectDraft)
+        self.assertEqual(sound_task.workspace.parameters.seconds, 12)
+
+    def test_interrupted_install_is_reported_as_repairable(self) -> None:
+        service = ModuleService.__new__(ModuleService)
+        service.install_threads = {}
+        service.states = {
+            "voice_design": {
+                "status": "installing",
+                "model_ready": False,
+                "runtime_ready": False,
+                "phase": "models",
+                "progress": 0.52,
+            }
+        }
+        descriptor = service.describe("voice_design")
+        self.assertEqual(descriptor["install_state"], "repair_required")
+        self.assertIn("Python 3.12", descriptor["runtime_python"])
+
+    def test_voice_design_output_sequence_survives_cleared_history(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / "项目_音色设计_002_20260812_120000.wav").write_bytes(b"RIFF")
+            (root / "项目_音色设计_009_20260812_130000.wav").write_bytes(b"RIFF")
+            self.assertEqual(_next_output_index(root), 10)
+            self.assertEqual(_next_output_index(root, 15), 15)
+
+    def test_project_patch_uses_module_to_parse_voice_design_workspace(self) -> None:
+        patch_model = ProjectPatch.model_validate({
+            "revision": 0,
+            "module": "voice_design",
+            "workspace": {"text": "测试台词", "instruction": "测试音色"},
+        })
+        self.assertIsInstance(patch_model.workspace, VoiceDesignDraft)
+        self.assertEqual(patch_model.workspace.instruction, "测试音色")
+
+    def test_voice_generator_defaults_match_official_sampling_baseline(self) -> None:
+        parameters = VoiceDesignDraft().parameters
+        self.assertEqual(parameters.audio_temperature, 1.5)
+        self.assertEqual(parameters.audio_top_p, 0.6)
+        self.assertEqual(parameters.audio_top_k, 50)
+        self.assertEqual(parameters.audio_repetition_penalty, 1.1)
+        self.assertEqual(parameters.max_new_tokens, 4096)
+
+    def test_model_lock_contracts_are_stable(self) -> None:
+        self.assertEqual(MODEL_LOCKS["openmoss/MOSS-VoiceGenerator"]["file_count"], 17)
+        self.assertEqual(MODEL_LOCKS["openmoss/MOSS-Audio-Tokenizer"]["total_bytes"], 7_101_116_247)
+        self.assertEqual(MODEL_LOCKS["openmoss/MOSS-SoundEffect-v2.0"]["manifest_sha256"], "b50a3034b1abae0bfcc7435e079e5c03705b1a61ee17f22aaae1941126c7daf7")
+
+    def test_manifest_digest_is_order_independent(self) -> None:
+        class Entry:
+            def __init__(self, path: str, size: int, sha256: str):
+                self.path = path
+                self.size = size
+                self.sha256 = sha256
+                self.is_dir = False
+                self.type = "blob"
+
+        entries = [Entry("b.bin", 2, "bb"), Entry("a.bin", 1, "aa")]
+        self.assertEqual(manifest_digest(entries), manifest_digest(reversed(entries)))
+
+    def test_incomplete_model_install_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            lock = MODEL_LOCKS["openmoss/MOSS-VoiceGenerator"]
+            (root / ".voicegrid-install.json").write_text(
+                json.dumps({"repo_id": "openmoss/MOSS-VoiceGenerator", "manifest_sha256": lock["manifest_sha256"]}),
+                encoding="utf-8",
+            )
+            self.assertFalse(_model_complete(root, "voice_design"))
+            (root / ".voicegrid-install.json").unlink()
+            (root / "config.json").write_bytes(b"")
+            (root / "empty.safetensors").write_bytes(b"")
+            self.assertFalse(_model_complete(root, "voice_design"))
+
+    def test_rebuild_ignores_output_outside_project_resource_root(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            database = Database(root / "app.db")
+            database.initialize()
+            try:
+                with patch.object(repository, "DB", database), patch.object(repository, "PROJECTS_DIR", root / "projects"):
+                    created = repository.create_project("边界检查", "Chinese")
+                    external = root / "external.wav"
+                    external.write_bytes(b"RIFF")
+                    project_file = root / "projects" / created["id"] / "project.json"
+                    payload = json.loads(project_file.read_text(encoding="utf-8"))
+                    payload["output_snapshots"]["untrusted"] = {
+                        "path": str(external), "filename": external.name, "module": "speech", "kind": "speech_output",
+                    }
+                    project_file.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+                    repository.rebuild_project_index()
+                    self.assertIsNone(database.one("SELECT id FROM outputs WHERE id='untrusted'"))
+            finally:
+                database.close()
+
+    def test_rebuild_accepts_registered_external_delivery_root(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            database = Database(root / "app.db")
+            database.initialize()
+            try:
+                with patch.object(repository, "DB", database), patch.object(repository, "PROJECTS_DIR", root / "projects"):
+                    created = repository.create_project("交付目录", "Chinese")
+                    delivery = root / "delivery"
+                    delivery.mkdir()
+                    workspace = WorkspaceDraft.model_validate(created["workspace"])
+                    workspace.output_profile.output_directory = str(delivery)
+                    repository.save_project(created["id"], created["revision"], workspace)
+                    audio = delivery / "result.wav"
+                    audio.write_bytes(b"RIFF")
+                    project_file = root / "projects" / created["id"] / "project.json"
+                    payload = json.loads(project_file.read_text(encoding="utf-8"))
+                    payload["output_snapshots"]["trusted"] = {
+                        "path": str(audio), "filename": audio.name, "module": "speech", "kind": "speech_output",
+                    }
+                    project_file.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+                    repository.rebuild_project_index()
+                    self.assertIsNotNone(database.one("SELECT id FROM outputs WHERE id='trusted'"))
+            finally:
+                database.close()
+
     def test_manual_speed_estimates_tokens_from_text_length(self) -> None:
         text = "这是一段用于验证手动语速控制的二十字文本。"
         effective_chars = len(text)

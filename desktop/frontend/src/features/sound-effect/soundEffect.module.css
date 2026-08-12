@@ -1,0 +1,40 @@
+.loading { height: calc(100% - var(--titlebar-height) - 42px); background: var(--surface-canvas); }
+.workspace { height: calc(100% - var(--titlebar-height) - 42px); min-width: 0; min-height: 0; display: grid; grid-template-columns: minmax(460px, 1.3fr) minmax(340px, .8fr); gap: 8px; padding: 8px; overflow: hidden; background: var(--surface-canvas); }
+.leftColumn, .rightColumn { min-width: 0; min-height: 0; display: grid; align-content: start; gap: 8px; overflow-x: hidden; overflow-y: scroll; scrollbar-gutter: stable; padding-inline-end: 2px; }
+.stageNotice { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 9px; align-items: center; border: 1px solid color-mix(in srgb, var(--warning) 38%, var(--border-subtle)); border-radius: var(--radius-md); padding: 10px 12px; background: color-mix(in srgb, var(--warning) 8%, var(--surface-raised)); }
+.stageNotice svg { color: var(--warning); }
+.stageNotice div { display: grid; gap: 2px; }
+.stageNotice strong { font-size: 11px; }
+.stageNotice span { color: var(--text-secondary); font-size: 9px; }
+.sectionBody { display: grid; gap: 12px; padding: 12px; }
+.sectionBody textarea { min-height: 210px; resize: vertical; }
+.durationField { height: 38px; display: grid; grid-template-columns: minmax(0, 1fr) 58px; align-items: center; gap: 10px; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); padding: 0 10px; background: var(--surface-sunken); }
+.durationField input { width: 100%; accent-color: var(--accent); }
+.durationField strong { color: var(--accent); font: 700 10px var(--font-mono); text-align: end; }
+.expandButton { width: 30px; height: 30px; display: grid; place-items: center; border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--text-muted); }
+.expandButton:hover { background: var(--surface-hover); color: var(--text-primary); }
+.parameterGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; border: 0; margin: 0; padding: 12px; }
+.collapsedHint { padding: 13px 14px; color: var(--text-muted); font-size: 9px; }
+.previewAsset { min-width: 0; display: flex; align-items: center; gap: 9px; padding: 12px; }
+.previewAsset > span { width: 36px; height: 36px; flex: none; display: grid; place-items: center; border-radius: var(--radius-sm); background: var(--accent-soft); color: var(--accent); }
+.previewAsset > div { min-width: 0; display: grid; }
+.previewAsset strong, .previewAsset small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.previewAsset strong { font-size: 11px; }
+.previewAsset small { color: var(--text-muted); font-size: 9px; }
+.fakeWave { height: 90px; display: flex; align-items: center; gap: 2px; margin: 0 12px; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: 9px; background: var(--surface-sunken); overflow: hidden; }
+.fakeWave i { width: 2px; flex: 1; min-height: 2px; border-radius: 2px; background: var(--accent); opacity: .42; }
+.lockedActions { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; padding: 12px; }
+.assetList { display: grid; opacity: .58; pointer-events: none; }
+.assetList article { min-width: 0; display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; gap: 8px; align-items: center; border-bottom: 1px solid var(--border-subtle); padding: 10px 12px; }
+.assetList article > span { width: 28px; height: 28px; display: grid; place-items: center; border-radius: var(--radius-sm); background: var(--surface-raised); color: var(--text-muted); }
+.assetList article > div { min-width: 0; display: grid; }
+.assetList strong, .assetList small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.assetList strong { font-size: 10px; }
+.assetList small { color: var(--text-muted); font-size: 8px; }
+.assetList em { color: var(--text-muted); font: normal 700 8px var(--font-mono); }
+.specs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1px; margin: 0; padding: 12px; background: var(--border-subtle); }
+.specs div { min-width: 0; display: grid; gap: 3px; padding: 10px; background: var(--surface-sunken); }
+.specs dt { color: var(--text-muted); font-size: 9px; }
+.specs dd { margin: 0; overflow-wrap: anywhere; color: var(--text-primary); font-size: 10px; font-weight: 700; }
+@media (max-width: 1100px) { .workspace { grid-template-columns: minmax(420px, 1.15fr) minmax(320px, .85fr); } }
+@media (max-width: 1060px) { .workspace { grid-template-columns: minmax(390px, 1.1fr) minmax(300px, .9fr); gap: 6px; padding: 6px; } }

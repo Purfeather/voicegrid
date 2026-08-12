@@ -24,6 +24,14 @@ HF_MODULES_DIR = CACHE_DIR / "hf_modules"
 MODELS_DIR = ROOT / "models"
 MOSS_MODEL_DIR = MODELS_DIR / "MOSS-TTS-Local-Transformer-v1.5"
 MOSS_CODEC_DIR = MODELS_DIR / "MOSS-Audio-Tokenizer-v2"
+OPTIONAL_MODELS_DIR = ROOT / "optional-models"
+VOICE_GENERATOR_MODEL_DIR = OPTIONAL_MODELS_DIR / "MOSS-VoiceGenerator"
+VOICE_GENERATOR_CODEC_DIR = OPTIONAL_MODELS_DIR / "MOSS-Audio-Tokenizer"
+SOUND_EFFECT_MODEL_DIR = OPTIONAL_MODELS_DIR / "MOSS-SoundEffect-v2.0"
+RUNTIMES_DIR = ROOT / "runtimes"
+VOICE_GENERATOR_RUNTIME_DIR = RUNTIMES_DIR / "moss-voice-generator"
+SOUND_EFFECT_RUNTIME_DIR = RUNTIMES_DIR / "moss-soundeffect-v2"
+MODULE_STATE_DIR = DATA_DIR / "modules"
 LOGS_DIR = Path(os.environ.get("MOSS_TTS_LOGS_DIR", RUNTIME_ROOT / "logs")).resolve()
 
 
@@ -40,6 +48,9 @@ def ensure_directories() -> None:
         VOICE_CACHE_DIR,
         HF_HOME_DIR,
         HF_MODULES_DIR,
+        OPTIONAL_MODELS_DIR,
+        RUNTIMES_DIR,
+        MODULE_STATE_DIR,
         LOGS_DIR,
     ):
         directory.mkdir(parents=True, exist_ok=True)

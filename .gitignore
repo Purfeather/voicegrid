@@ -5,6 +5,9 @@ node_modules/
 
 # Shared model junction and generated runtime state
 models/
+optional-models/
+runtimes/
+startup-lab/multimodule-ui/
 data/
 /projects/
 references/

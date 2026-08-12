@@ -37,6 +37,9 @@ export function OutputPanel({ workspace, tasks, history, generating, onWorkspace
   const settingsPopover = useRef<HTMLDivElement>(null);
   const profile = workspace.output_profile;
   const current = useMemo(() => history.find((item) => item.id === selectedId) || history[0] || null, [history, selectedId]);
+  const generationSnapshot = current?.generation_snapshot && "style" in current.generation_snapshot
+    ? current.generation_snapshot
+    : null;
   useEffect(() => { if (!selectedId && history[0]) setSelectedId(history[0].id); }, [history, selectedId]);
   useEffect(() => { setSettingsOpen(false); }, [current?.id]);
 
@@ -120,7 +123,7 @@ export function OutputPanel({ workspace, tasks, history, generating, onWorkspace
         </div>
       </Section>
 
-      <Section title="当前输出" eyebrow="Monitor" actions={current?.generation_snapshot && <div ref={settingsButton}><Button className={styles.settingsTrigger} variant="ghost" icon={<Settings2 size={14} />} onClick={() => setSettingsOpen((value) => !value)}>生成设定</Button></div>}>
+      <Section title="当前输出" eyebrow="Monitor" actions={generationSnapshot && <div ref={settingsButton}><Button className={styles.settingsTrigger} variant="ghost" icon={<Settings2 size={14} />} onClick={() => setSettingsOpen((value) => !value)}>生成设定</Button></div>}>
         {current ? <div className={styles.currentOutput}>
           <div><span className={styles.outputIcon}><AudioLines size={14} /></span><div><strong title={current.filename}>{current.filename}</strong><span>{current.format} · {current.sample_rate / 1000} kHz · {current.bit_depth} bit · {formatDuration(current.duration)}</span></div></div>
           <audio controls src={current.artifact_url} />
@@ -128,18 +131,18 @@ export function OutputPanel({ workspace, tasks, history, generating, onWorkspace
         </div> : <EmptyState title="尚未生成音频" detail="生成完成后会先保存到活动记录，再自动出现在这里。" />}
       </Section>
 
-      {settingsOpen && current?.generation_snapshot && createPortal(
+      {settingsOpen && generationSnapshot && createPortal(
         <div ref={settingsPopover} className={styles.generationPopover} style={popoverPosition} role="dialog" aria-label="生成设定">
           <header><div><span>Generation settings</span><strong>生成设定</strong></div><IconButton label="关闭生成设定" onClick={() => setSettingsOpen(false)}><X size={15} /></IconButton></header>
           <div className={styles.generationPopoverBody}>
             <dl className={styles.generationFacts}>
-              <div><dt>风格</dt><dd>{current.generation_snapshot.style || "未命名"}</dd></div>
-              <div><dt>生成语速</dt><dd>{current.generation_snapshot.speed || "自动"}</dd></div>
-              <div><dt>原参考音频</dt><dd>{current.generation_snapshot.reference_audio?.name || "无参考"}</dd></div>
+              <div><dt>风格</dt><dd>{generationSnapshot.style || "未命名"}</dd></div>
+              <div><dt>生成语速</dt><dd>{generationSnapshot.speed || "自动"}</dd></div>
+              <div><dt>原参考音频</dt><dd>{generationSnapshot.reference_audio?.name || "无参考"}</dd></div>
             </dl>
-            <section><strong>情感提示</strong><p>{current.generation_snapshot.instruction || "未设置"}</p></section>
+            <section><strong>情感提示</strong><p>{generationSnapshot.instruction || "未设置"}</p></section>
           </div>
-          <footer><Button variant="primary" icon={<RotateCcw size={15} />} onClick={() => { onReuse(current.generation_snapshot!); setSettingsOpen(false); }}>一键复用生成设定</Button></footer>
+          <footer><Button variant="primary" icon={<RotateCcw size={15} />} onClick={() => { onReuse(generationSnapshot); setSettingsOpen(false); }}>一键复用生成设定</Button></footer>
         </div>, document.body,
       )}
 

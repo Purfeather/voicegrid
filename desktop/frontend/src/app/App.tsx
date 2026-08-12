@@ -1,10 +1,11 @@
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
-import { Navigate, Route, Routes, useNavigate } from "react-router-dom";
+import { Navigate, Route, Routes, useNavigate, useParams } from "react-router-dom";
 import { AlertTriangle, Clock3, FolderOpen, RefreshCw } from "lucide-react";
 import type {
   AppEvent,
   CoreBootstrap,
   HardwareMetrics,
+  ModuleDescriptor,
   ProjectSummary,
   ResourceState,
   RuntimeSnapshot,
@@ -22,6 +23,8 @@ import { ProjectCenter } from "../features/projects/ProjectCenter";
 import styles from "./App.module.css";
 
 const Workbench = lazy(() => import("../features/workbench/Workbench").then((module) => ({ default: module.Workbench })));
+const VoiceDesignWorkbench = lazy(() => import("../features/voice-design/VoiceDesignWorkbench").then((module) => ({ default: module.VoiceDesignWorkbench })));
+const SoundEffectWorkbench = lazy(() => import("../features/sound-effect/SoundEffectWorkbench").then((module) => ({ default: module.SoundEffectWorkbench })));
 
 const EMPTY_METRICS: HardwareMetrics = { cpu_percent: 0, memory_used_gb: 0, memory_total_gb: 0, memory_percent: 0, gpu_name: "", gpu_percent: null, vram_used_gb: null, vram_total_gb: null, python_version: "--", platform: "Windows", timestamp: "" };
 const EMPTY_RUNTIME: RuntimeSnapshot = { state: "idle", active_model: null, message: "模型未加载", device: "", dtype: "", attention: "", models: [] };
@@ -57,6 +60,21 @@ function StartupDiagnostic({ title, detail, retry, onContinue }: { title: string
   );
 }
 
+function LegacyProjectRedirect() {
+  const { projectId = "" } = useParams();
+  return <Navigate to={`/projects/${projectId}/speech`} replace />;
+}
+
+function WorkspaceFallback({ runtime, metrics, theme, onTheme, onRelease }: {
+  runtime: RuntimeSnapshot;
+  metrics: HardwareMetrics;
+  theme: ThemeId;
+  onTheme: (theme: ThemeId) => void;
+  onRelease: () => Promise<void>;
+}) {
+  return <><TitleBar runtime={runtime} metrics={metrics} theme={theme} onTheme={onTheme} onRelease={onRelease} /><main id="main-content" className={styles.fatal}><EmptyState title="正在准备模块" detail="模块采用按需载入，其他工作台不会被同时加载。" /></main></>;
+}
+
 export function App() {
   const navigate = useNavigate();
   const [core, setCore] = useState<ResourceState<CoreBootstrap | null>>(() => initialResource(null));
@@ -65,6 +83,7 @@ export function App() {
   const [stylePresets, setStylePresets] = useState<ResourceState<StylePreset[]>>(() => initialResource([]));
   const [runtime, setRuntime] = useState<ResourceState<RuntimeSnapshot>>(() => initialResource(EMPTY_RUNTIME));
   const [metrics, setMetrics] = useState<ResourceState<HardwareMetrics>>(() => initialResource(EMPTY_METRICS));
+  const [modules, setModules] = useState<ResourceState<ModuleDescriptor[]>>(() => initialResource([]));
   const [theme, setTheme] = useState<ThemeId>(loadTheme);
   const [toast, setToast] = useState<{ message: string; tone: "success" | "error" } | null>(null);
   const [lastEvent, setLastEvent] = useState<AppEvent | null>(null);
@@ -93,8 +112,9 @@ export function App() {
     setStylePresets(loadingResource);
     setRuntime(loadingResource);
     setMetrics(loadingResource);
-    const [voiceResult, styleResult, runtimeResult, metricsResult] = await Promise.allSettled([
-      api.voices(), api.styles(), api.runtime(), api.metrics(),
+    setModules(loadingResource);
+    const [voiceResult, styleResult, runtimeResult, metricsResult, moduleResult] = await Promise.allSettled([
+      api.voices(), api.styles(), api.runtime(), api.metrics(), api.modules(),
     ]);
     if (voiceResult.status === "fulfilled") setVoices(readyResource(voiceResult.value));
     else setVoices((current) => failedResource(current, voiceResult.reason));
@@ -104,6 +124,13 @@ export function App() {
     else setRuntime((current) => failedResource(current, runtimeResult.reason));
     if (metricsResult.status === "fulfilled") setMetrics(readyResource(metricsResult.value));
     else setMetrics((current) => failedResource(current, metricsResult.reason));
+    if (moduleResult.status === "fulfilled") setModules(readyResource(moduleResult.value));
+    else setModules((current) => failedResource(current, moduleResult.reason));
+  }, []);
+
+  const refreshModules = useCallback(async () => {
+    try { setModules(readyResource(await api.modules())); }
+    catch (reason) { setModules((current) => failedResource(current, reason)); }
   }, []);
 
   const refreshVoicesAndStyles = useCallback(async () => {
@@ -140,8 +167,13 @@ export function App() {
   useEffect(() => subscribeEvents((event) => {
     if (event.type === "metrics.updated") setMetrics(readyResource(event.payload as HardwareMetrics));
     if (event.type === "runtime.updated") setRuntime(readyResource(event.payload as RuntimeSnapshot));
+    if (event.type === "module.updated") {
+      const descriptor = event.payload as ModuleDescriptor;
+      setModules((current) => readyResource([descriptor, ...current.data.filter((item) => item.id !== descriptor.id)].sort((a, b) => ["speech", "voice_design", "sound_effect"].indexOf(a.id) - ["speech", "voice_design", "sound_effect"].indexOf(b.id))));
+    }
+    if (event.type === "voice.updated") void refreshVoicesAndStyles();
     setLastEvent(event);
-  }), []);
+  }), [refreshVoicesAndStyles]);
   useEffect(() => {
     if (!toast) return;
     const timer = window.setTimeout(() => setToast(null), 3800);
@@ -164,7 +196,7 @@ export function App() {
   async function createProject(name: string, language: string) {
     const project = await api.createProject(name, language);
     await refreshProjects();
-    navigate(`/projects/${project.id}`);
+    navigate(`/projects/${project.id}/speech`);
   }
 
   async function deleteProject(id: string) {
@@ -213,12 +245,13 @@ export function App() {
           error={projects.error}
           onRetry={() => { void refreshProjects(); }}
           onCreate={createProject}
-          onOpen={async (id) => navigate(`/projects/${id}`)}
+          onOpen={async (id) => navigate(`/projects/${id}/speech`)}
           onDelete={deleteProject}
           startupNotice={slowCritical ? <StartupDiagnostic title="启动时间超出预期" detail="项目索引仍在准备，窗口与新建入口保持可用。可以继续等待、重试或查看日志。" retry={() => { void retryCritical(); }} onContinue={() => { void keepWaiting(); }} /> : null}
         />
       </>} />
-      <Route path="/projects/:projectId" element={
+      <Route path="/projects/:projectId" element={<LegacyProjectRedirect />} />
+      <Route path="/projects/:projectId/speech" element={
         <Suspense fallback={<><TitleBar runtime={runtime.data} metrics={metrics.data} theme={theme} onTheme={setTheme} onRelease={releaseRuntime} /><main id="main-content" className={styles.fatal}><EmptyState title="正在准备工作台" detail="项目中心保持可用，正在按需载入编辑器组件。" /></main></>}>
           <Workbench
             voices={voices.data}
@@ -230,6 +263,37 @@ export function App() {
             theme={theme}
             onTheme={setTheme}
             onRefreshResources={refreshVoicesAndStyles}
+            onRuntime={(value) => setRuntime(readyResource(value))}
+            onMessage={message}
+            modules={modules.data}
+          />
+        </Suspense>
+      } />
+      <Route path="/projects/:projectId/voice-design" element={
+        <Suspense fallback={<WorkspaceFallback runtime={runtime.data} metrics={metrics.data} theme={theme} onTheme={setTheme} onRelease={releaseRuntime} />}>
+          <VoiceDesignWorkbench
+            modules={modules.data}
+            runtime={runtime.data}
+            metrics={metrics.data}
+            event={lastEvent}
+            theme={theme}
+            onTheme={setTheme}
+            onModulesChanged={refreshModules}
+            onResourcesChanged={refreshVoicesAndStyles}
+            onRuntime={(value) => setRuntime(readyResource(value))}
+            onMessage={message}
+          />
+        </Suspense>
+      } />
+      <Route path="/projects/:projectId/sound-effect" element={
+        <Suspense fallback={<WorkspaceFallback runtime={runtime.data} metrics={metrics.data} theme={theme} onTheme={setTheme} onRelease={releaseRuntime} />}>
+          <SoundEffectWorkbench
+            modules={modules.data}
+            runtime={runtime.data}
+            metrics={metrics.data}
+            theme={theme}
+            onTheme={setTheme}
+            onModulesChanged={refreshModules}
             onRuntime={(value) => setRuntime(readyResource(value))}
             onMessage={message}
           />

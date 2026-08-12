@@ -11,12 +11,11 @@ from pathlib import Path
 from fastapi import FastAPI, File, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 
-from app.model_engine import ENGINE
-
 from .database import DB
 from .defaults import LANGUAGES, PARAMETER_PRESETS
 from .desktop_control import DESKTOP
 from .events import EVENTS
+from .module_service import MODULE_SERVICE
 from .paths import ASSETS_DIR, FRONTEND_DIST, ensure_directories
 from .repository import (
     add_upload,
@@ -44,10 +43,20 @@ from .repository import (
     reconcile_project_index,
     rebuild_project_index,
     save_project,
+    save_output_as_voice,
     save_style,
     update_voice,
 )
-from .schemas import ProjectCreate, ProjectPatch, StyleCreate, TaskCreate, VoicePatch
+from .runtime_service import RUNTIME
+from .schemas import (
+    ModuleInstallRequest,
+    ModuleTaskCreate,
+    ProjectCreate,
+    ProjectPatch,
+    SaveDesignedVoice,
+    StyleCreate,
+    VoicePatch,
+)
 from .system_monitor import MONITOR, snapshot as system_snapshot
 from .task_service import TASKS
 
@@ -92,6 +101,7 @@ async def lifespan(_: FastAPI):
     _report_startup("api", "本地服务已就绪")
     yield
     TASKS.shutdown()
+    MODULE_SERVICE.shutdown()
     MONITOR.stop()
     if reconcile_thread is not None and reconcile_thread.is_alive():
         reconcile_thread.join(timeout=2)
@@ -120,7 +130,8 @@ def bootstrap():
         "projects": list_projects(),
         "voices": list_voices(),
         "styles": list_styles(),
-        "runtime": ENGINE.describe(),
+        "runtime": RUNTIME.describe(),
+        "modules": MODULE_SERVICE.list(),
         "metrics": system_snapshot(),
         "languages": LANGUAGES,
     }
@@ -182,7 +193,7 @@ def project_get(project_id: str, begin_session: bool = True):
 @app.patch("/api/v2/projects/{project_id}")
 def project_patch(project_id: str, request: ProjectPatch):
     try:
-        result = save_project(project_id, request.revision, request.workspace)
+        result = save_project(project_id, request.revision, request.workspace, request.module)
         EVENTS.publish("project.saved", {"id": project_id, "revision": result["revision"]})
         return result
     except Exception as exc:
@@ -205,23 +216,23 @@ def project_remove(project_id: str):
 
 
 @app.get("/api/v2/projects/{project_id}/history")
-def project_history(project_id: str):
-    return list_outputs(project_id)
+def project_history(project_id: str, module: str | None = Query(default=None)):
+    return list_outputs(project_id, module)
 
 
 @app.delete("/api/v2/projects/{project_id}/history", status_code=204)
-def project_history_clear(project_id: str, delete_files: bool = False):
+def project_history_clear(project_id: str, delete_files: bool = False, module: str | None = Query(default=None)):
     try:
-        clear_outputs(project_id, delete_files)
+        clear_outputs(project_id, delete_files, module)
     except Exception as exc:
         raise _translate_error(exc) from exc
 
 
 @app.delete("/api/v2/projects/{project_id}/activity")
-def project_activity_clear(project_id: str, delete_files: bool = False):
+def project_activity_clear(project_id: str, delete_files: bool = False, module: str | None = Query(default=None)):
     try:
-        result = clear_project_activity(project_id, delete_files)
-        EVENTS.publish("activity.cleared", {"project_id": project_id, **result})
+        result = clear_project_activity(project_id, delete_files, module)
+        EVENTS.publish("activity.cleared", {"project_id": project_id, "module": module, **result})
         return result
     except Exception as exc:
         raise _translate_error(exc) from exc
@@ -280,19 +291,38 @@ def style_remove(name: str):
         raise _translate_error(exc) from exc
 
 
-@app.post("/api/v2/tasks")
-def task_create(request: TaskCreate):
-    if not request.workspace.text.strip():
-        raise HTTPException(status_code=422, detail="请输入需要合成的文本。")
+@app.post("/api/v2/module-tasks")
+def module_task_create(request: ModuleTaskCreate):
+    workspace = request.workspace.model_dump(mode="json")
     try:
-        return TASKS.create(request.project_id, request.workspace.model_dump(mode="json"))
+        if request.module == "speech":
+            if not workspace["text"].strip():
+                raise ValueError("请输入需要合成的文本。")
+            return TASKS.create(request.project_id, workspace)
+        if request.module == "voice_design":
+            if not workspace["text"].strip():
+                raise ValueError("请输入试听台词。")
+            if not workspace["instruction"].strip():
+                raise ValueError("请输入最终音色提示词。")
+            return TASKS.create_voice_design(request.project_id, workspace)
+        raise ValueError("音效生成引擎尚未开放。")
+    except Exception as exc:
+        raise _translate_error(exc) from exc
+
+
+@app.post("/api/v2/voice-design/outputs/{output_id}/save-as-voice")
+def voice_design_save(output_id: str, request: SaveDesignedVoice):
+    try:
+        voice = save_output_as_voice(output_id, request.name)
+        EVENTS.publish("voice.updated", voice)
+        return voice
     except Exception as exc:
         raise _translate_error(exc) from exc
 
 
 @app.get("/api/v2/tasks")
-def tasks(project_id: str = Query(...)):
-    return list_tasks(project_id)
+def tasks(project_id: str = Query(...), module: str | None = Query(default=None)):
+    return list_tasks(project_id, module)
 
 
 @app.get("/api/v2/tasks/{task_id}")
@@ -320,13 +350,42 @@ def task_remove(task_id: str):
 
 
 @app.delete("/api/v2/tasks", status_code=204)
-def tasks_clear(project_id: str = Query(...)):
-    clear_finished_tasks(project_id)
+def tasks_clear(project_id: str = Query(...), module: str | None = Query(default=None)):
+    clear_finished_tasks(project_id, module)
+
+
+@app.get("/api/v2/modules")
+def modules():
+    return MODULE_SERVICE.list()
+
+
+@app.post("/api/v2/modules/{module_id}/detect")
+def module_detect(module_id: str):
+    try:
+        return MODULE_SERVICE.detect(module_id)
+    except Exception as exc:
+        raise _translate_error(exc) from exc
+
+
+@app.post("/api/v2/modules/{module_id}/install")
+def module_install(module_id: str, request: ModuleInstallRequest):
+    try:
+        return MODULE_SERVICE.install(module_id, request.confirm)
+    except Exception as exc:
+        raise _translate_error(exc) from exc
+
+
+@app.post("/api/v2/modules/{module_id}/repair")
+def module_repair(module_id: str, request: ModuleInstallRequest):
+    try:
+        return MODULE_SERVICE.install(module_id, request.confirm)
+    except Exception as exc:
+        raise _translate_error(exc) from exc
 
 
 @app.get("/api/v2/runtime")
 def runtime():
-    return ENGINE.describe()
+    return RUNTIME.describe()
 
 
 @app.post("/api/v2/runtime/release")
@@ -351,7 +410,7 @@ async def event_stream():
                     yield EVENTS.encode(event)
                 except queue.Empty:
                     yield EVENTS.encode({"type": "metrics.updated", "payload": system_snapshot()})
-                    yield EVENTS.encode({"type": "runtime.updated", "payload": ENGINE.describe()})
+                    yield EVENTS.encode({"type": "runtime.updated", "payload": RUNTIME.describe()})
                 except asyncio.CancelledError:
                     break
     return StreamingResponse(generate(), media_type="text/event-stream", headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})

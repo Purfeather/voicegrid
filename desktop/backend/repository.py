@@ -15,12 +15,13 @@ from .audio import analyze_audio, internal_audio_path, save_upload
 from .database import DB
 from .defaults import default_workspace
 from .paths import PROJECTS_DIR, UPLOADS_DIR, VOICES_DIR
-from .schemas import VoicePatch, WorkspaceDraft
+from .schemas import ProjectWorkspaces, SoundEffectDraft, VoiceDesignDraft, VoicePatch, WorkspaceDraft
 
 
 _PROJECT_WRITE_LOCK = threading.RLock()
 _INDEX_LOCK = threading.RLock()
 _INDEX_STATE: dict[str, Any] = {"status": "idle", "indexed": 0, "error": None, "mode": None}
+_OUTPUT_SUFFIXES = {".wav", ".flac"}
 
 
 def now() -> str:
@@ -38,11 +39,58 @@ def _project_file(project_id: str) -> Path:
     return PROJECTS_DIR / project_id / "project.json"
 
 
+def _is_within(path: Path, root: Path) -> bool:
+    resolved = path.resolve()
+    resolved_root = root.resolve()
+    return resolved != resolved_root and resolved_root in resolved.parents
+
+
+def _trusted_output_roots(project_id: str) -> list[Path]:
+    return [Path(row["path"]).resolve() for row in DB.query("SELECT path FROM output_roots WHERE project_id=?", (project_id,))]
+
+
+def _rebuildable_output_path(project_id: str, module: str, value: str) -> Path | None:
+    try:
+        candidate = Path(value).resolve()
+        if candidate.suffix.lower() not in _OUTPUT_SUFFIXES or not candidate.is_file():
+            return None
+        output_root = (PROJECTS_DIR / project_id / "outputs").resolve()
+        if module == "speech" and not _is_within(candidate, output_root):
+            if not any(_is_within(candidate, root) for root in _trusted_output_roots(project_id)):
+                return None
+        elif module != "speech" and not _is_within(candidate, output_root):
+            return None
+        if module == "voice_design" and not _is_within(candidate, output_root / "voice-design"):
+            return None
+        if module == "sound_effect" and not _is_within(candidate, output_root / "sound-effects"):
+            return None
+        return candidate
+    except (OSError, RuntimeError, ValueError):
+        return None
+
+
+def _deletable_output_path(project_id: str, value: str) -> Path | None:
+    try:
+        candidate = Path(value).resolve()
+        if candidate.suffix.lower() not in _OUTPUT_SUFFIXES or not candidate.is_file():
+            return None
+        project_output_root = (PROJECTS_DIR / project_id / "outputs").resolve()
+        trusted = _is_within(candidate, project_output_root) or any(
+            _is_within(candidate, root) for root in _trusted_output_roots(project_id)
+        )
+        return candidate if trusted else None
+    except (OSError, RuntimeError, ValueError):
+        return None
+
+
 def _read_project(path: Path) -> dict[str, Any]:
     payload = json.loads(path.read_text(encoding="utf-8"))
-    workspace = payload.get("workspace")
-    if isinstance(workspace, dict):
-        payload["workspace"] = WorkspaceDraft.model_validate(workspace).model_dump(mode="json")
+    legacy_workspace = payload.pop("workspace", None)
+    workspaces = dict(payload.get("workspaces") or {})
+    if isinstance(legacy_workspace, dict) and "speech" not in workspaces:
+        workspaces["speech"] = legacy_workspace
+    payload["workspaces"] = ProjectWorkspaces.model_validate(workspaces).model_dump(mode="json")
+    payload["schema_version"] = max(4, int(payload.get("schema_version", 3)))
     return payload
 
 
@@ -102,7 +150,9 @@ def rebuild_project_index(mode: str = "rebuild") -> int:
     for path in PROJECTS_DIR.glob("*/project.json"):
         try:
             payload = _read_project(path)
-            workspace = payload.get("workspace", {})
+            if payload.get("id") != path.parent.name or not re.fullmatch(r"[0-9a-f]{32}", str(payload.get("id") or "")):
+                continue
+            workspace = payload.get("workspaces", {}).get("speech", {})
             voice_id = workspace.get("voice_id") or workspace.get("reference_id")
             records.append((
                 payload["id"], payload["name"], str(path), payload["created_at"], payload["updated_at"],
@@ -111,15 +161,19 @@ def rebuild_project_index(mode: str = "rebuild") -> int:
             ))
             for output_id, output in (payload.get("output_snapshots") or {}).items():
                 output_path = str(output.get("path") or "")
-                if not output_path or not Path(output_path).is_file():
+                module = str(output.get("module") or "speech")
+                trusted_path = _rebuildable_output_path(payload["id"], module, output_path)
+                if trusted_path is None:
                     continue
-                record = {**output, "id": output_id, "project_id": payload["id"]}
+                record = {**output, "id": output_id, "project_id": payload["id"], "path": str(trusted_path)}
                 output_records.append((
                     output_id,
                     payload["id"],
+                    module,
+                    str(record.get("kind") or "speech_output"),
                     str(record.get("task_id") or "recovered"),
-                    output_path,
-                    str(record.get("filename") or Path(output_path).name),
+                    str(trusted_path),
+                    str(record.get("filename") or trusted_path.name),
                     str(record.get("created_at") or payload["updated_at"]),
                     json.dumps(record, ensure_ascii=False),
                 ))
@@ -136,11 +190,18 @@ def rebuild_project_index(mode: str = "rebuild") -> int:
                     recovery_available=excluded.recovery_available,voice_id=excluded.voice_id""",
                     records,
                 )
+                connection.executemany(
+                    "INSERT OR IGNORE INTO output_roots(project_id,path,created_at) VALUES(?,?,?)",
+                    [
+                        (record[0], str((PROJECTS_DIR / str(record[0]) / "outputs").resolve()), str(record[4]))
+                        for record in records
+                    ],
+                )
                 if output_records:
                     connection.executemany(
-                        """INSERT INTO outputs(id,project_id,task_id,path,filename,created_at,metadata_json)
-                        VALUES(?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET
-                        project_id=excluded.project_id,task_id=excluded.task_id,path=excluded.path,
+                        """INSERT INTO outputs(id,project_id,module,kind,task_id,path,filename,created_at,metadata_json)
+                        VALUES(?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET
+                        project_id=excluded.project_id,module=excluded.module,kind=excluded.kind,task_id=excluded.task_id,path=excluded.path,
                         filename=excluded.filename,created_at=excluded.created_at,metadata_json=excluded.metadata_json""",
                         output_records,
                     )
@@ -162,7 +223,7 @@ def create_project(name: str, language: str) -> dict[str, Any]:
     output_directory.mkdir(parents=True, exist_ok=True)
     timestamp = now()
     payload = {
-        "schema_version": 3,
+        "schema_version": 4,
         "id": project_id,
         "name": _safe_project_name(name),
         "created_at": timestamp,
@@ -170,7 +231,9 @@ def create_project(name: str, language: str) -> dict[str, Any]:
         "revision": 1,
         "session_active": True,
         "recovery_available": False,
-        "workspace": default_workspace(language, output_directory),
+        "workspaces": ProjectWorkspaces(
+            speech=WorkspaceDraft.model_validate(default_workspace(language, output_directory)),
+        ).model_dump(mode="json"),
         "output_snapshots": {},
     }
     path = project_root / "project.json"
@@ -179,6 +242,10 @@ def create_project(name: str, language: str) -> dict[str, Any]:
         connection.execute(
             "INSERT INTO projects(id,name,path,created_at,updated_at,revision,session_active,recovery_available,voice_id) VALUES(?,?,?,?,?,?,?,?,?)",
             (project_id, payload["name"], str(path), timestamp, timestamp, 1, 1, 0, None),
+        )
+        connection.execute(
+            "INSERT INTO output_roots(project_id,path,created_at) VALUES(?,?,?)",
+            (project_id, str(output_directory.resolve()), timestamp),
         )
     return project_detail(payload)
 
@@ -223,12 +290,14 @@ def get_project(project_id: str, begin_session: bool = False) -> dict[str, Any]:
 
 def project_detail(payload: dict[str, Any]) -> dict[str, Any]:
     count_row = DB.one("SELECT COUNT(*) AS count FROM outputs WHERE project_id=?", (payload["id"],))
+    speech_workspace = payload.get("workspaces", {}).get("speech", {})
     return {
         **payload,
+        "workspace": speech_workspace,
         "output_count": int(count_row["count"] if count_row else 0),
-        "voice": _project_voice_name(payload.get("workspace", {})),
+        "voice": _project_voice_name(payload.get("workspaces", {}).get("speech", {})),
         "status": "已保留上次编辑进度" if payload.get("recovery_available") else "已自动保存",
-        "history": list_outputs(payload["id"]),
+        "history": list_outputs(payload["id"], "speech"),
     }
 
 
@@ -240,21 +309,35 @@ def _project_voice_name(workspace: dict[str, Any]) -> str:
     return str(row["name"]) if row else "未选择"
 
 
-def save_project(project_id: str, revision: int, workspace: WorkspaceDraft) -> dict[str, Any]:
+def save_project(
+    project_id: str,
+    revision: int,
+    workspace: WorkspaceDraft | VoiceDesignDraft | SoundEffectDraft,
+    module: str = "speech",
+) -> dict[str, Any]:
     path = _project_file(project_id)
     with _PROJECT_WRITE_LOCK:
         payload = _read_project(path)
         current_revision = int(payload.get("revision", 0))
-        payload["workspace"] = workspace.model_dump(mode="json")
+        payload.setdefault("workspaces", {})[module] = workspace.model_dump(mode="json")
         payload["revision"] = max(current_revision + 1, revision + 1)
         payload["updated_at"] = now()
         payload["session_active"] = True
         payload["recovery_available"] = False
         _write_atomic(path, payload)
-        workspace_payload = payload["workspace"]
+        workspace_payload = payload["workspaces"]["speech"]
         voice_id = workspace_payload.get("voice_id") or workspace_payload.get("reference_id")
         with DB.transaction() as connection:
             connection.execute("UPDATE projects SET updated_at=?,revision=?,session_active=1,recovery_available=0,voice_id=? WHERE id=?", (payload["updated_at"], payload["revision"], voice_id, project_id))
+            if module == "speech":
+                output_value = str(workspace_payload.get("output_profile", {}).get("output_directory") or "").strip()
+                if output_value:
+                    output_root = Path(output_value).expanduser().resolve()
+                    output_root.mkdir(parents=True, exist_ok=True)
+                    connection.execute(
+                        "INSERT OR IGNORE INTO output_roots(project_id,path,created_at) VALUES(?,?,?)",
+                        (project_id, str(output_root), payload["updated_at"]),
+                    )
     return project_detail(payload)
 
 
@@ -286,6 +369,7 @@ def delete_project(project_id: str) -> None:
         with DB.transaction() as connection:
             connection.execute("DELETE FROM outputs WHERE project_id=?", (project_id,))
             connection.execute("DELETE FROM tasks WHERE project_id=?", (project_id,))
+            connection.execute("DELETE FROM output_roots WHERE project_id=?", (project_id,))
             connection.execute("DELETE FROM projects WHERE id=?", (project_id,))
         shutil.rmtree(project_root)
     _set_index_state(indexed=project_index_count())
@@ -372,6 +456,48 @@ def update_voice(asset_id: str, patch: VoicePatch) -> dict[str, Any]:
     return get_voice(asset_id)
 
 
+def save_output_as_voice(output_id: str, name: str) -> dict[str, Any]:
+    row = DB.one("SELECT * FROM outputs WHERE id=?", (output_id,))
+    if row is None:
+        raise FileNotFoundError("音色设计输出不存在。")
+    if row["module"] != "voice_design":
+        raise ValueError("只有音色设计结果可以保存到共享音色库。")
+    source = internal_audio_path(row["path"])
+    asset_id = uuid.uuid4().hex
+    target = VOICES_DIR / f"{asset_id}{source.suffix.lower()}"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(source, target)
+    try:
+        health = analyze_audio(target)
+        record = json.loads(row["metadata_json"] or "{}")
+        snapshot = dict(record.get("generation_snapshot") or {})
+        metadata = {
+            "role": "设计音色",
+            "language_accent": str(snapshot.get("composer", {}).get("accent_language") or ""),
+            "gender_age": str(snapshot.get("composer", {}).get("age_gender") or ""),
+            "description": str(record.get("instruction") or "")[:500],
+            "source_output_id": output_id,
+        }
+        timestamp = now()
+        with DB.transaction() as connection:
+            connection.execute(
+                "INSERT INTO voices(id,name,path,saved,created_at,metadata_json,health_json) VALUES(?,?,?,?,?,?,?)",
+                (
+                    asset_id,
+                    _safe_project_name(name),
+                    str(target),
+                    1,
+                    timestamp,
+                    json.dumps(metadata, ensure_ascii=False),
+                    json.dumps(health, ensure_ascii=False),
+                ),
+            )
+        return get_voice(asset_id)
+    except Exception:
+        target.unlink(missing_ok=True)
+        raise
+
+
 def delete_voice(asset_id: str, delete_file: bool) -> None:
     row = DB.one("SELECT path FROM voices WHERE id=?", (asset_id,))
     if row is None:
@@ -410,13 +536,13 @@ def delete_style(name: str) -> None:
 def insert_task(task: dict[str, Any]) -> None:
     with DB.transaction() as connection:
         connection.execute(
-            "INSERT INTO tasks(id,project_id,status,progress,message,payload_json,result_id,error,cancel_requested,remove_after_stop,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
-            (task["id"], task["project_id"], task["status"], task["progress"], task["message"], json.dumps(task["payload"], ensure_ascii=False), None, None, 0, 0, task["created_at"], task["updated_at"]),
+            "INSERT INTO tasks(id,project_id,module,status,progress,message,payload_json,result_id,error,cancel_requested,remove_after_stop,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            (task["id"], task["project_id"], task.get("module", "speech"), task["status"], task["progress"], task["message"], json.dumps(task["payload"], ensure_ascii=False), None, None, 0, 0, task["created_at"], task["updated_at"]),
         )
 
 
 def _task_from_row(row) -> dict[str, Any]:
-    task = {key: row[key] for key in ("id", "project_id", "status", "progress", "message", "result_id", "error", "created_at", "updated_at")}
+    task = {key: row[key] for key in ("id", "project_id", "module", "status", "progress", "message", "result_id", "error", "created_at", "updated_at")}
     task["remove_after_stop"] = bool(row["remove_after_stop"])
     return task
 
@@ -435,8 +561,12 @@ def task_payload(task_id: str) -> dict[str, Any]:
     return json.loads(row["payload_json"])
 
 
-def list_tasks(project_id: str) -> list[dict[str, Any]]:
-    return [_task_from_row(row) for row in DB.query("SELECT * FROM tasks WHERE project_id=? ORDER BY created_at DESC", (project_id,))]
+def list_tasks(project_id: str, module: str | None = None) -> list[dict[str, Any]]:
+    if module:
+        rows = DB.query("SELECT * FROM tasks WHERE project_id=? AND module=? ORDER BY created_at DESC", (project_id, module))
+    else:
+        rows = DB.query("SELECT * FROM tasks WHERE project_id=? ORDER BY created_at DESC", (project_id,))
+    return [_task_from_row(row) for row in rows]
 
 
 def update_task(task_id: str, **changes: Any) -> dict[str, Any]:
@@ -454,9 +584,15 @@ def cancel_requested(task_id: str) -> bool:
     return bool(row and row["cancel_requested"])
 
 
-def clear_finished_tasks(project_id: str) -> None:
+def clear_finished_tasks(project_id: str, module: str | None = None) -> None:
     with DB.transaction() as connection:
-        connection.execute("DELETE FROM tasks WHERE project_id=? AND status NOT IN ('queued','running')", (project_id,))
+        if module:
+            connection.execute(
+                "DELETE FROM tasks WHERE project_id=? AND module=? AND status NOT IN ('queued','running')",
+                (project_id, module),
+            )
+        else:
+            connection.execute("DELETE FROM tasks WHERE project_id=? AND status NOT IN ('queued','running')", (project_id,))
 
 
 def delete_task(task_id: str) -> None:
@@ -467,39 +603,63 @@ def delete_task(task_id: str) -> None:
         connection.execute("DELETE FROM tasks WHERE id=?", (task_id,))
 
 
-def clear_project_activity(project_id: str, delete_files: bool = False) -> dict[str, int]:
+def clear_project_activity(project_id: str, delete_files: bool = False, module: str | None = None) -> dict[str, int]:
     get_project(project_id)
-    finished_tasks = DB.one(
-        "SELECT COUNT(*) AS count FROM tasks WHERE project_id=? AND status NOT IN ('queued','running')",
-        (project_id,),
-    )
-    outputs = DB.one("SELECT COUNT(*) AS count FROM outputs WHERE project_id=?", (project_id,))
-    clear_outputs(project_id, delete_files)
-    clear_finished_tasks(project_id)
+    if module:
+        finished_tasks = DB.one(
+            "SELECT COUNT(*) AS count FROM tasks WHERE project_id=? AND module=? AND status NOT IN ('queued','running')",
+            (project_id, module),
+        )
+        outputs = DB.one("SELECT COUNT(*) AS count FROM outputs WHERE project_id=? AND module=?", (project_id, module))
+    else:
+        finished_tasks = DB.one(
+            "SELECT COUNT(*) AS count FROM tasks WHERE project_id=? AND status NOT IN ('queued','running')",
+            (project_id,),
+        )
+        outputs = DB.one("SELECT COUNT(*) AS count FROM outputs WHERE project_id=?", (project_id,))
+    clear_outputs(project_id, delete_files, module)
+    clear_finished_tasks(project_id, module)
     return {
         "tasks_removed": int(finished_tasks["count"] if finished_tasks else 0),
         "outputs_removed": int(outputs["count"] if outputs else 0),
     }
 
 
-def add_output(project_id: str, task_id: str, metadata: dict[str, Any]) -> dict[str, Any]:
+def add_output(project_id: str, task_id: str, metadata: dict[str, Any], module: str = "speech", kind: str = "speech_output") -> dict[str, Any]:
+    output_path = Path(str(metadata["path"])).resolve()
+    if output_path.suffix.lower() not in _OUTPUT_SUFFIXES or not output_path.is_file():
+        raise ValueError("输出音频不存在或格式不受支持。")
+    if module in {"voice_design", "sound_effect"} and _rebuildable_output_path(project_id, module, str(output_path)) is None:
+        raise ValueError("模块输出不在当前项目的受控资源目录内。")
     output_id = uuid.uuid4().hex
-    record = {**metadata, "id": output_id, "project_id": project_id, "task_id": task_id, "artifact_url": f"/api/v2/artifacts/{output_id}"}
+    record = {**metadata, "path": str(output_path), "id": output_id, "project_id": project_id, "task_id": task_id, "module": module, "kind": kind, "artifact_url": f"/api/v2/artifacts/{output_id}"}
     path = _project_file(project_id)
+    previous_payload: dict[str, Any] | None = None
     with _PROJECT_WRITE_LOCK:
         payload = _read_project(path)
+        previous_payload = json.loads(json.dumps(payload, ensure_ascii=False))
         payload.setdefault("output_snapshots", {})[output_id] = {key: value for key, value in record.items() if key != "artifact_url"}
-        payload["schema_version"] = max(3, int(payload.get("schema_version", 2)))
+        payload["schema_version"] = max(4, int(payload.get("schema_version", 3)))
         payload["updated_at"] = now()
         _write_atomic(path, payload)
-    with DB.transaction() as connection:
-        connection.execute("INSERT INTO outputs(id,project_id,task_id,path,filename,created_at,metadata_json) VALUES(?,?,?,?,?,?,?)", (output_id, project_id, task_id, metadata["path"], metadata["filename"], metadata["created_at"], json.dumps(record, ensure_ascii=False)))
+    try:
+        with DB.transaction() as connection:
+            connection.execute("INSERT INTO outputs(id,project_id,module,kind,task_id,path,filename,created_at,metadata_json) VALUES(?,?,?,?,?,?,?,?,?)", (output_id, project_id, module, kind, task_id, str(output_path), metadata["filename"], metadata["created_at"], json.dumps(record, ensure_ascii=False)))
+    except Exception:
+        if previous_payload is not None:
+            with _PROJECT_WRITE_LOCK:
+                _write_atomic(path, previous_payload)
+        raise
     return record
 
 
-def list_outputs(project_id: str) -> list[dict[str, Any]]:
+def list_outputs(project_id: str, module: str | None = None) -> list[dict[str, Any]]:
     records = []
-    for row in DB.query("SELECT * FROM outputs WHERE project_id=? ORDER BY created_at DESC", (project_id,)):
+    if module:
+        rows = DB.query("SELECT * FROM outputs WHERE project_id=? AND module=? ORDER BY created_at DESC", (project_id, module))
+    else:
+        rows = DB.query("SELECT * FROM outputs WHERE project_id=? ORDER BY created_at DESC", (project_id,))
+    for row in rows:
         record = json.loads(row["metadata_json"])
         record.pop("path", None)
         record["artifact_url"] = f"/api/v2/artifacts/{row['id']}"
@@ -507,21 +667,37 @@ def list_outputs(project_id: str) -> list[dict[str, Any]]:
     return records
 
 
-def clear_outputs(project_id: str, delete_files: bool) -> None:
-    rows = DB.query("SELECT path FROM outputs WHERE project_id=?", (project_id,))
+def clear_outputs(project_id: str, delete_files: bool, module: str | None = None) -> None:
+    rows = DB.query(
+        "SELECT id,path FROM outputs WHERE project_id=?" + (" AND module=?" if module else ""),
+        (project_id, module) if module else (project_id,),
+    )
     path = _project_file(project_id)
     with _PROJECT_WRITE_LOCK:
         payload = _read_project(path)
-        payload["output_snapshots"] = {}
+        if module:
+            removed_ids = {row["id"] for row in rows}
+            payload["output_snapshots"] = {
+                output_id: output
+                for output_id, output in (payload.get("output_snapshots") or {}).items()
+                if output_id not in removed_ids
+            }
+        else:
+            payload["output_snapshots"] = {}
         payload["updated_at"] = now()
         _write_atomic(path, payload)
     with DB.transaction() as connection:
-        connection.execute("DELETE FROM outputs WHERE project_id=?", (project_id,))
+        if module:
+            connection.execute("DELETE FROM outputs WHERE project_id=? AND module=?", (project_id, module))
+        else:
+            connection.execute("DELETE FROM outputs WHERE project_id=?", (project_id,))
     if delete_files:
         for row in rows:
-            path = Path(row["path"])
-            path.unlink(missing_ok=True)
-            path.with_suffix(path.suffix + ".json").unlink(missing_ok=True)
+            trusted_path = _deletable_output_path(project_id, str(row["path"]))
+            if trusted_path is None:
+                continue
+            trusted_path.unlink(missing_ok=True)
+            trusted_path.with_suffix(trusted_path.suffix + ".json").unlink(missing_ok=True)
 
 
 def artifact(asset_id: str) -> tuple[Path, str]:
@@ -531,5 +707,8 @@ def artifact(asset_id: str) -> tuple[Path, str]:
         return path, path.name
     row = DB.one("SELECT path,filename FROM outputs WHERE id=?", (asset_id,))
     if row:
-        return Path(row["path"]), row["filename"]
+        path = Path(row["path"]).resolve()
+        if path.suffix.lower() not in _OUTPUT_SUFFIXES:
+            raise ValueError("输出资源格式无效。")
+        return path, row["filename"]
     raise FileNotFoundError("文件资源不存在。")

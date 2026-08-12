@@ -1,0 +1,52 @@
+.loading { height: calc(100% - var(--titlebar-height) - 42px); background: var(--surface-canvas); }
+.workspace { height: calc(100% - var(--titlebar-height) - 42px); min-width: 0; min-height: 0; display: grid; grid-template-columns: minmax(230px, 280px) minmax(440px, 1fr) minmax(300px, 360px); gap: 8px; padding: 8px; overflow: hidden; background: var(--surface-canvas); }
+.column { min-width: 0; min-height: 0; display: grid; align-content: start; gap: 8px; overflow-x: hidden; overflow-y: scroll; scrollbar-gutter: stable; padding-inline-end: 2px; }
+.sectionBody, .editorBody, .generateBody { display: grid; gap: 9px; padding: 12px; }
+.sectionBody p { margin: 0; color: var(--text-muted); font-size: 10px; line-height: 1.55; }
+.modeSwitch { display: grid; grid-template-columns: 1fr 1fr; gap: 3px; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); padding: 3px; background: var(--surface-sunken); }
+.modeSwitch button { height: 32px; border: 0; border-radius: 4px; background: transparent; color: var(--text-muted); font-size: 10px; font-weight: 700; }
+.modeSwitch .active { background: var(--accent); color: var(--on-accent); }
+:root[data-theme="light"] .modeSwitch .active { background: var(--accent-gradient); }
+.composerGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; border: 0; margin: 0; padding: 12px; }
+.promptPreview { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 7px 10px; align-items: end; border-top: 1px solid var(--border-subtle); padding: 11px 12px 12px; background: var(--surface-raised); }
+.promptPreview > span { grid-column: 1 / -1; color: var(--text-muted); font: 700 9px var(--font-mono); text-transform: uppercase; }
+.promptPreview p { min-width: 0; margin: 0; color: var(--text-secondary); font-size: 10px; line-height: 1.55; }
+.promptPreview button { align-self: stretch; }
+.editorBody textarea { resize: vertical; }
+.editorBody small { color: var(--text-muted); font-size: 9px; }
+.counter { justify-self: end; color: var(--text-muted); font: 9px var(--font-mono); }
+.generateButton { width: 100%; min-height: 42px; }
+.activeTask { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px 8px; align-items: center; }
+.activeTask > div { grid-column: 1 / -1; }
+.activeTask span { color: var(--text-muted); font-size: 9px; }
+.activeTask button { min-height: 28px; padding: 3px 7px; font-size: 9px; }
+.advancedToggle { min-width: 0; height: 38px; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 7px; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: 0 9px; background: var(--surface-sunken); color: var(--text-secondary); text-align: start; }
+.advancedToggle span { font-size: 10px; font-weight: 700; }
+.advancedToggle small { color: var(--text-muted); font-size: 9px; text-align: end; }
+.parameterGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; border: 0; margin: 0; padding: 0; }
+.compactButton { min-height: 28px; padding: 3px 8px; font-size: 9px; }
+.currentOutput { display: grid; gap: 9px; padding: 12px; }
+.currentOutput > div:first-child { min-width: 0; display: flex; align-items: center; gap: 8px; }
+.currentOutput > div:first-child > div { min-width: 0; display: grid; }
+.currentOutput strong, .currentOutput small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.currentOutput strong { font-size: 10px; }
+.currentOutput small { color: var(--text-muted); font-size: 9px; }
+.outputMark { width: 30px; height: 30px; flex: none; display: grid; place-items: center; border-radius: var(--radius-sm); background: var(--accent-soft); color: var(--accent); }
+.currentOutput audio { width: 100%; height: 34px; }
+.outputActions { display: grid !important; grid-template-columns: 1fr 1fr; gap: 6px !important; }
+.outputActions > a { min-height: 36px; display: flex; align-items: center; justify-content: center; gap: 7px; border-radius: var(--radius-sm); background: var(--accent-gradient); color: var(--on-accent); font-size: 11px; font-weight: 700; text-decoration: none; }
+.historyList { min-height: 180px; display: grid; align-content: start; }
+.historyList > button { min-width: 0; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 8px; align-items: center; border: 0; border-bottom: 1px solid var(--border-subtle); padding: 9px 10px; background: transparent; color: inherit; text-align: start; }
+.historyList > button:hover, .selectedHistory { background: var(--surface-hover) !important; }
+.historyList > button > svg { color: var(--accent); }
+.historyList > button > span { min-width: 0; display: grid; }
+.historyList strong, .historyList small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.historyList strong { font-size: 10px; }
+.historyList small { color: var(--text-muted); font-size: 8px; }
+.historyList em { color: var(--text-muted); font: normal 700 8px var(--font-mono); }
+.historyList article { position: relative; display: grid; gap: 6px; border-bottom: 1px solid var(--border-subtle); padding: 9px 40px 9px 10px; }
+.historyList article > button { min-width: 0; display: flex; align-items: center; justify-content: space-between; gap: 6px; border: 0; padding: 0; background: transparent; color: inherit; }
+.historyList article > button > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 9px; }
+.historyList article > button:last-child { position: absolute; inset: 8px 6px auto auto; width: 28px; height: 28px; }
+@media (max-width: 1180px) { .workspace { grid-template-columns: minmax(210px, 245px) minmax(400px, 1fr) minmax(280px, 310px); } .composerGrid { gap: 7px; } }
+@media (max-width: 1080px) { .workspace { grid-template-columns: minmax(190px, 220px) minmax(375px, 1fr) minmax(260px, 285px); gap: 6px; padding: 6px; } .composerGrid { gap: 6px; padding: 10px; } .sectionBody, .editorBody, .generateBody { padding: 10px; } }

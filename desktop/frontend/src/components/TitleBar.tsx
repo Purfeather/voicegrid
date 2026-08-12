@@ -19,6 +19,7 @@ interface Props {
 }
 
 function HardwarePopover({ metrics, runtime, onRelease, onClose }: { metrics: HardwareMetrics; runtime: RuntimeSnapshot; onRelease: () => Promise<void>; onClose: () => void }) {
+  const moduleName = runtime.active_module === "voice_design" ? "音色设计" : runtime.active_module === "sound_effect" ? "音效生成" : runtime.active_module === "speech" ? "语音合成" : "未激活";
   return (
     <aside className={styles.hardwarePopover} aria-label="运行环境详情">
       <header><div><span>本机运行环境</span><strong>{runtime.active_model ? "模型已接入" : "模型待命"}</strong></div><IconButton label="关闭硬件详情" onClick={onClose}><X size={17} /></IconButton></header>
@@ -30,7 +31,8 @@ function HardwarePopover({ metrics, runtime, onRelease, onClose }: { metrics: Ha
       </div>
       <dl className={styles.environmentList}>
         <div><dt>显卡</dt><dd>{metrics.gpu_name || "未检测到"}</dd></div>
-        <div><dt>模型</dt><dd>MOSS-TTS Local Transformer v1.5 · 4B</dd></div>
+        <div><dt>模块</dt><dd>{moduleName}</dd></div>
+        <div><dt>模型</dt><dd>{runtime.active_model || "尚未加载"}</dd></div>
         <div><dt>设备</dt><dd>{runtime.device || "待检测"} · {runtime.dtype || "--"} · {runtime.attention || "--"}</dd></div>
         <div><dt>环境</dt><dd>Python {metrics.python_version} · {metrics.platform}</dd></div>
       </dl>

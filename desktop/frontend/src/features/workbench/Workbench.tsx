@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import type { AppEvent, HardwareMetrics, ProjectDetail, RuntimeSnapshot, StylePreset, TaskRecord, ThemeId, VoiceAsset, WorkspaceDraft } from "../../types";
+import type { AppEvent, HardwareMetrics, ModuleDescriptor, ProjectDetail, RuntimeSnapshot, StylePreset, TaskRecord, ThemeId, VoiceAsset, WorkspaceDraft } from "../../types";
 import { api } from "../../services/api";
 import { openFolder } from "../../services/native";
 import { TitleBar } from "../../components/TitleBar";
@@ -10,6 +10,7 @@ import { ScriptPanel } from "./ScriptPanel";
 import { OutputPanel } from "./OutputPanel";
 import { ParameterRail } from "./ParameterRail";
 import styles from "./workbench.module.css";
+import { ModuleTabs } from "../modules/ModuleTabs";
 
 interface Props {
   voices: VoiceAsset[];
@@ -23,6 +24,7 @@ interface Props {
   onRefreshResources: () => Promise<void>;
   onRuntime: (runtime: RuntimeSnapshot) => void;
   onMessage: (message: string, tone?: "success" | "error") => void;
+  modules: ModuleDescriptor[];
 }
 
 export function Workbench(props: Props) {
@@ -36,15 +38,36 @@ export function Workbench(props: Props) {
   const [loadError, setLoadError] = useState("");
   const dirty = useRef(false);
   const revision = useRef(0);
+  const editVersion = useRef(0);
+  const saveQueue = useRef<Promise<void>>(Promise.resolve());
 
-  const refreshProject = useCallback(async () => {
-    const [detail, taskList] = await Promise.all([api.openProject(projectId), api.tasks(projectId)]);
-    revision.current = detail.revision;
+  const refreshProject = useCallback(async (preserveWorkspace = false) => {
+    const [detail, taskList] = await Promise.all([api.openProject(projectId), api.tasks(projectId, "speech")]);
+    revision.current = Math.max(revision.current, detail.revision);
     setProject(detail);
-    setWorkspace(detail.workspace);
+    if (!preserveWorkspace || !dirty.current) setWorkspace(detail.workspace);
     setTasks(taskList);
-    setSaveState(detail.recovery_available ? "已恢复上次进度" : "已自动保存");
+    if (!preserveWorkspace || !dirty.current) {
+      dirty.current = false;
+      editVersion.current = 0;
+      setSaveState(detail.recovery_available ? "已恢复上次进度" : "已自动保存");
+    }
   }, [projectId]);
+
+  const queueSave = useCallback((snapshot: WorkspaceDraft, version: number) => {
+    if (!project) return Promise.resolve();
+    const operation = saveQueue.current.then(async () => {
+      const saved = await api.saveProject(project.id, revision.current, snapshot, "speech");
+      revision.current = saved.revision;
+      setProject((current) => current ? { ...current, revision: saved.revision, updated_at: saved.updated_at } : current);
+      if (editVersion.current === version) {
+        dirty.current = false;
+        setSaveState("已自动保存");
+      }
+    });
+    saveQueue.current = operation.catch(() => undefined);
+    return operation;
+  }, [project]);
 
   useEffect(() => {
     refreshProject().catch((error) => setLoadError(error instanceof Error ? error.message : "项目载入失败"));
@@ -55,36 +78,36 @@ export function Workbench(props: Props) {
     if (!event) return;
     if (event.type === "task.updated") {
       const task = event.payload as TaskRecord;
-      if (task.project_id !== projectId) return;
+      if (task.project_id !== projectId || task.module !== "speech") return;
       setTasks((current) => [task, ...current.filter((item) => item.id !== task.id)].sort((a, b) => b.created_at.localeCompare(a.created_at)));
-      if (task.status === "completed") refreshProject().catch(() => undefined);
+      if (task.status === "completed") refreshProject(true).catch(() => undefined);
     }
     if (event.type === "task.removed") {
-      const removed = event.payload as { id: string; project_id: string };
-      if (removed.project_id === projectId) setTasks((current) => current.filter((task) => task.id !== removed.id));
+      const removed = event.payload as { id: string; project_id: string; module?: string };
+      if (removed.project_id === projectId && (!removed.module || removed.module === "speech")) setTasks((current) => current.filter((task) => task.id !== removed.id));
     }
   }, [projectId, props.event, refreshProject]);
 
   useEffect(() => {
     if (!dirty.current || !workspace || !project) return;
     setSaveState("保存中…");
+    const version = editVersion.current;
+    const snapshot = workspace;
     const timer = window.setTimeout(async () => {
+      if (!dirty.current || editVersion.current !== version) return;
       try {
-        const saved = await api.saveProject(project.id, revision.current, workspace);
-        revision.current = saved.revision;
-        setProject((current) => current ? { ...current, revision: saved.revision, updated_at: saved.updated_at } : current);
-        dirty.current = false;
-        setSaveState("已自动保存");
+        await queueSave(snapshot, version);
       } catch (error) {
         setSaveState("保存失败");
         props.onMessage(error instanceof Error ? error.message : "项目保存失败", "error");
       }
     }, 650);
     return () => window.clearTimeout(timer);
-  }, [workspace, project, props.onMessage]);
+  }, [workspace, project, props.onMessage, queueSave]);
 
   function updateWorkspace(patch: Partial<WorkspaceDraft>) {
     dirty.current = true;
+    editVersion.current += 1;
     setWorkspace((current) => current ? { ...current, ...patch } : current);
     setSaveState("有未保存更改");
   }
@@ -93,11 +116,9 @@ export function Workbench(props: Props) {
     if (!project || !workspace) return;
     try {
       if (dirty.current) {
-        const saved = await api.saveProject(project.id, revision.current, workspace);
-        revision.current = saved.revision;
-        dirty.current = false;
+        await queueSave(workspace, editVersion.current);
       }
-      const task = await api.createTask(project.id, workspace);
+      const task = await api.createModuleTask(project.id, "speech", workspace);
       setTasks((current) => [task, ...current]);
       props.onMessage("任务已加入队列。", "success");
     } catch (error) { props.onMessage(error instanceof Error ? error.message : "无法创建任务", "error"); }
@@ -106,19 +127,31 @@ export function Workbench(props: Props) {
   async function back() {
     if (project && workspace) {
       try {
-        if (dirty.current) await api.saveProject(project.id, revision.current, workspace);
+        if (dirty.current) await queueSave(workspace, editVersion.current);
         await api.closeProject(project.id);
       } catch { /* The local autosave remains available for recovery. */ }
     }
     navigate("/projects");
   }
 
-  if (loadError) return <><TitleBar runtime={props.runtime} metrics={props.metrics} theme={props.theme} onTheme={props.onTheme} onBack={() => navigate("/projects")} onRelease={async () => props.onRuntime(await api.releaseRuntime())} /><main id="main-content" className={styles.workbench}><EmptyState title="项目无法打开" detail={loadError} /></main></>;
-  if (!project || !workspace) return <><TitleBar runtime={props.runtime} metrics={props.metrics} theme={props.theme} onTheme={props.onTheme} onBack={() => navigate("/projects")} onRelease={async () => props.onRuntime(await api.releaseRuntime())} /><main id="main-content" className={styles.workbench}><EmptyState title="正在准备工作台" detail="正在读取项目、音色和运行环境…" /></main></>;
+  async function saveBeforeModuleSwitch() {
+    if (!project || !workspace || !dirty.current) return;
+    try {
+      await queueSave(workspace, editVersion.current);
+    } catch (error) {
+      setSaveState("保存失败");
+      props.onMessage(error instanceof Error ? error.message : "切换模块前保存失败", "error");
+      throw error;
+    }
+  }
+
+  if (loadError) return <><TitleBar runtime={props.runtime} metrics={props.metrics} theme={props.theme} onTheme={props.onTheme} onBack={() => navigate("/projects")} onRelease={async () => props.onRuntime(await api.releaseRuntime())} /><ModuleTabs modules={props.modules} /><main id="main-content" className={styles.workbench}><EmptyState title="项目无法打开" detail={loadError} /></main></>;
+  if (!project || !workspace) return <><TitleBar runtime={props.runtime} metrics={props.metrics} theme={props.theme} onTheme={props.onTheme} onBack={() => navigate("/projects")} onRelease={async () => props.onRuntime(await api.releaseRuntime())} /><ModuleTabs modules={props.modules} /><main id="main-content" className={styles.workbench}><EmptyState title="正在准备工作台" detail="正在读取项目、音色和运行环境…" /></main></>;
 
   const generating = tasks.some((task) => task.status === "queued" || task.status === "running");
   return <>
     <TitleBar projectName={project.name} saveState={saveState} runtime={props.runtime} metrics={props.metrics} theme={props.theme} onTheme={props.onTheme} onBack={back} onRelease={async () => props.onRuntime(await api.releaseRuntime())} />
+    <ModuleTabs modules={props.modules} beforeNavigate={saveBeforeModuleSwitch} />
     <main id="main-content" className={styles.workbench}>
       <div className={styles.workbenchMain}>
         <VoicePanel voices={props.voices} workspace={workspace} onWorkspace={updateWorkspace} onVoicesChanged={props.onRefreshResources} onMessage={props.onMessage} />
@@ -139,7 +172,7 @@ export function Workbench(props: Props) {
           }}
           onClearActivity={async () => {
             if (!window.confirm("清除全部任务与输出记录吗？已生成的音频文件和进行中任务会保留。")) return;
-            await api.clearActivity(project.id, false);
+            await api.clearActivity(project.id, false, "speech");
             setTasks((current) => current.filter((task) => task.status === "queued" || task.status === "running"));
             setProject((current) => current ? { ...current, history: [], output_count: 0 } : current);
             props.onMessage("活动记录已清除，音频文件已保留。", "success");

@@ -42,6 +42,7 @@ CREATE TABLE IF NOT EXISTS styles (
 CREATE TABLE IF NOT EXISTS tasks (
     id TEXT PRIMARY KEY,
     project_id TEXT NOT NULL,
+    module TEXT NOT NULL DEFAULT 'speech',
     status TEXT NOT NULL,
     progress REAL NOT NULL DEFAULT 0,
     message TEXT NOT NULL,
@@ -56,11 +57,19 @@ CREATE TABLE IF NOT EXISTS tasks (
 CREATE TABLE IF NOT EXISTS outputs (
     id TEXT PRIMARY KEY,
     project_id TEXT NOT NULL,
+    module TEXT NOT NULL DEFAULT 'speech',
+    kind TEXT NOT NULL DEFAULT 'speech_output',
     task_id TEXT NOT NULL,
     path TEXT NOT NULL UNIQUE,
     filename TEXT NOT NULL,
     created_at TEXT NOT NULL,
     metadata_json TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS output_roots (
+    project_id TEXT NOT NULL,
+    path TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    PRIMARY KEY(project_id, path)
 );
 CREATE INDEX IF NOT EXISTS idx_tasks_project_created ON tasks(project_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_outputs_project_created ON outputs(project_id, created_at DESC);
@@ -113,6 +122,7 @@ class Database:
         assert self.connection is not None
         project_columns = {str(row["name"]) for row in self.connection.execute("PRAGMA table_info(projects)").fetchall()}
         task_columns = {str(row["name"]) for row in self.connection.execute("PRAGMA table_info(tasks)").fetchall()}
+        output_columns = {str(row["name"]) for row in self.connection.execute("PRAGMA table_info(outputs)").fetchall()}
         changed = False
         if "voice_id" not in project_columns:
             self.connection.execute("ALTER TABLE projects ADD COLUMN voice_id TEXT")
@@ -120,6 +130,17 @@ class Database:
         if "remove_after_stop" not in task_columns:
             self.connection.execute("ALTER TABLE tasks ADD COLUMN remove_after_stop INTEGER NOT NULL DEFAULT 0")
             changed = True
+        if "module" not in task_columns:
+            self.connection.execute("ALTER TABLE tasks ADD COLUMN module TEXT NOT NULL DEFAULT 'speech'")
+            changed = True
+        if "module" not in output_columns:
+            self.connection.execute("ALTER TABLE outputs ADD COLUMN module TEXT NOT NULL DEFAULT 'speech'")
+            changed = True
+        if "kind" not in output_columns:
+            self.connection.execute("ALTER TABLE outputs ADD COLUMN kind TEXT NOT NULL DEFAULT 'speech_output'")
+            changed = True
+        self.connection.execute("CREATE INDEX IF NOT EXISTS idx_tasks_project_module_created ON tasks(project_id, module, created_at DESC)")
+        self.connection.execute("CREATE INDEX IF NOT EXISTS idx_outputs_project_module_created ON outputs(project_id, module, created_at DESC)")
         return changed
 
     def _preserve_corrupt_database(self) -> None:
