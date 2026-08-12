@@ -167,6 +167,16 @@ export function App() {
     navigate(`/projects/${project.id}`);
   }
 
+  async function deleteProject(id: string) {
+    try {
+      await api.deleteProject(id);
+      await refreshProjects();
+      message("项目已删除。");
+    } catch (reason) {
+      message(reason instanceof Error ? reason.message : "项目删除失败。", "error");
+    }
+  }
+
   async function releaseRuntime() {
     setRuntime(readyResource(await api.releaseRuntime()));
   }
@@ -204,6 +214,7 @@ export function App() {
           onRetry={() => { void refreshProjects(); }}
           onCreate={createProject}
           onOpen={async (id) => navigate(`/projects/${id}`)}
+          onDelete={deleteProject}
           startupNotice={slowCritical ? <StartupDiagnostic title="启动时间超出预期" detail="项目索引仍在准备，窗口与新建入口保持可用。可以继续等待、重试或查看日志。" retry={() => { void retryCritical(); }} onContinue={() => { void keepWaiting(); }} /> : null}
         />
       </>} />

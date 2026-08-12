@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Ban, CheckCircle2, Download, FolderOpen, History, LoaderCircle, Play, Trash2, WandSparkles, XCircle } from "lucide-react";
+import { AudioLines, Ban, CheckCircle2, Download, FileAudio2, FolderOpen, History, LoaderCircle, Trash2, WandSparkles, XCircle } from "lucide-react";
 import type { OutputProfile, OutputRecord, TaskRecord, WorkspaceDraft } from "../../types";
 import { api } from "../../services/api";
 import { selectFolder } from "../../services/native";
@@ -54,7 +54,7 @@ export function OutputPanel({ workspace, tasks, history, generating, onWorkspace
 
       <Section title="当前输出" eyebrow="Monitor">
         {current ? <div className={styles.currentOutput}>
-          <div><span className={styles.outputIcon}><Play size={16} /></span><div><strong title={current.filename}>{current.filename}</strong><span>{current.format} · {current.sample_rate / 1000} kHz · {current.bit_depth} bit · {formatDuration(current.duration)}</span></div></div>
+          <div><span className={styles.outputIcon}><AudioLines size={17} /></span><div><strong title={current.filename}>{current.filename}</strong><span>{current.format} · {current.sample_rate / 1000} kHz · {current.bit_depth} bit · {formatDuration(current.duration)}</span></div></div>
           <audio controls src={current.artifact_url} />
           <div className={styles.outputActions}><Button icon={<FolderOpen size={15} />} onClick={() => api.openArtifact(current.id)}>打开目录</Button><a className={styles.downloadButton} href={api.artifactUrl(current.id, true)} download><Download size={15} />下载</a></div>
         </div> : <EmptyState title="尚未生成音频" detail="生成完成后会先保存到历史，再自动出现在这里。" />}
@@ -77,7 +77,7 @@ export function OutputPanel({ workspace, tasks, history, generating, onWorkspace
         <div className={styles.historyList}>
           {history.length ? history.map((record) => (
             <button key={record.id} className={current?.id === record.id ? styles.historyActive : ""} onClick={() => setSelectedId(record.id)}>
-              <span className={styles.historyPlay}><Play size={13} /></span><span><strong>{record.filename}</strong><small>{new Date(record.created_at).toLocaleString("zh-CN")} · {formatDuration(record.duration)}</small></span><em>{record.format}</em>
+              <span className={styles.historyAsset}><FileAudio2 size={14} /></span><span><strong>{record.filename}</strong><small>{new Date(record.created_at).toLocaleString("zh-CN")} · {formatDuration(record.duration)}</small></span><em>{record.format}</em>
             </button>
           )) : <EmptyState title="历史记录为空" detail="输出记录保存在项目数据库中，重新打开仍可找回。" />}
         </div>

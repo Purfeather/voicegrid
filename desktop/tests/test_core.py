@@ -48,6 +48,27 @@ class RepositoryTests(unittest.TestCase):
             finally:
                 database.close()
 
+    def test_project_delete_removes_index_tasks_and_folder(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            database = Database(root / "app.db")
+            database.initialize()
+            try:
+                with patch.object(repository, "DB", database), patch.object(repository, "PROJECTS_DIR", root / "projects"):
+                    created = repository.create_project("待删除项目", "Chinese")
+                    project_root = root / "projects" / created["id"]
+                    with database.transaction() as connection:
+                        connection.execute(
+                            "INSERT INTO tasks(id,project_id,status,progress,message,payload_json,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?)",
+                            ("task-1", created["id"], "completed", 1, "完成", "{}", "2026-08-12T10:00:00", "2026-08-12T10:00:00"),
+                        )
+                    repository.delete_project(created["id"])
+                    self.assertFalse(project_root.exists())
+                    self.assertIsNone(database.one("SELECT id FROM projects WHERE id=?", (created["id"],)))
+                    self.assertIsNone(database.one("SELECT id FROM tasks WHERE project_id=?", (created["id"],)))
+            finally:
+                database.close()
+
     def test_concurrent_autosave_and_open_leave_valid_project_file(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

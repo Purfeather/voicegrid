@@ -50,6 +50,7 @@ export const api = {
     body: JSON.stringify({ revision, workspace }),
   }),
   closeProject: (id: string) => request<void>(`/projects/${id}/close`, { method: "POST", keepalive: true }),
+  deleteProject: (id: string) => request<void>(`/projects/${id}`, { method: "DELETE" }),
   uploadVoice: async (file: File) => {
     const body = new FormData();
     body.append("file", file);

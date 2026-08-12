@@ -18,6 +18,9 @@
   --accent-gradient: linear-gradient(135deg, #f3ff00, #d7e600);
   --success: #40d68d;
   --warning: #ffb84d;
+  --audio-trim-scrim: rgb(0 0 0 / 58%);
+  --audio-trim-selection: rgb(243 255 0 / 12%);
+  --audio-trim-highlight: rgb(243 255 0 / 34%);
   --danger: #ff5c67;
   --on-danger: #ffffff;
   --info: #69a7ff;
@@ -42,8 +45,11 @@
   --on-accent: #ffffff;
   --accent-soft: rgb(79 70 229 / 9%);
   --accent-gradient: linear-gradient(135deg, #2563eb, #7c3aed);
-  --success: #087a4b;
+  --success: #059669;
   --warning: #a45508;
+  --audio-trim-scrim: rgb(17 24 39 / 28%);
+  --audio-trim-selection: rgb(79 70 229 / 10%);
+  --audio-trim-highlight: rgb(79 70 229 / 32%);
   --danger: #c92535;
   --on-danger: #ffffff;
   --info: #2859c5;
@@ -73,4 +79,5 @@
   --layer-titlebar: 20;
   --layer-popover: 60;
   --layer-modal: 100;
+  --shadow-compact: 0 8px 24px rgb(0 0 0 / 24%);
 }

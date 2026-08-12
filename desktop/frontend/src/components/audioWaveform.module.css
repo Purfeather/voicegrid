@@ -1,17 +1,24 @@
 .player { display: grid; gap: 8px; }
 .player audio { display: none; }
-.waveform { height: 78px; overflow: hidden; border: 1px solid var(--border-subtle); border-radius: var(--radius-md); background: var(--surface-sunken); }
+.waveform { position: relative; height: 78px; overflow: hidden; border: 1px solid var(--border-subtle); border-radius: var(--radius-md); background: var(--surface-sunken); user-select: none; }
 .waveform svg { width: 100%; height: 100%; display: block; }
 .waveform line { stroke-width: .62; vector-effect: non-scaling-stroke; }
 .waveActive { stroke: var(--accent); }
 .waveMuted { stroke: var(--border-strong); }
 .playhead { stroke: var(--text-primary); stroke-width: 1 !important; }
+.trimShade { position: absolute; inset-block: 0; z-index: 1; background: var(--audio-trim-scrim); pointer-events: none; }
+.trimSelection { position: absolute; inset-block: 4px; z-index: 2; min-width: 2px; border: 1px solid var(--accent); border-radius: var(--radius-sm); background: var(--audio-trim-selection); box-shadow: inset 0 0 0 1px var(--audio-trim-highlight); cursor: grab; touch-action: none; }
+.trimSelection:active { cursor: grabbing; }
+.trimHandleStart, .trimHandleEnd { position: absolute; inset-block: -1px; width: 14px; border: 0; border-radius: var(--radius-sm); padding: 0; background: var(--accent); cursor: ew-resize; touch-action: none; }
+.trimHandleStart { inset-inline-start: -7px; }
+.trimHandleEnd { inset-inline-end: -7px; }
+.trimHandleStart::after, .trimHandleEnd::after { content: ""; position: absolute; inset: 16px 5px; border-inline-start: 1px solid var(--on-accent); opacity: .8; }
+.trimGrip { position: absolute; inset: auto 50% 5px auto; display: inline-flex; align-items: center; gap: 4px; translate: 50% 0; border-radius: 999px; padding: 3px 6px; background: var(--surface-raised); color: var(--text-secondary); font-size: 8px; white-space: nowrap; pointer-events: none; box-shadow: var(--shadow-compact); }
 .timeRow { min-height: 18px; display: flex; align-items: center; justify-content: space-between; padding-inline: 2px; color: var(--text-muted); font: 600 10px var(--font-mono); }
 .scrubber { width: 100%; height: 18px; margin: 0; accent-color: var(--accent); }
 .transport { height: 38px; display: flex; align-items: center; justify-content: center; gap: 8px; border-block: 1px solid var(--border-subtle); color: var(--text-muted); }
-.trimHeader { min-height: 24px; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.trimHeader span { display: flex; align-items: center; gap: 6px; color: var(--text-secondary); font-size: 11px; font-weight: 700; }
-.trimHeader strong { color: var(--text-muted); font: 600 10px var(--font-mono); }
-.trimControls { display: grid; gap: 6px; }
-.trimControls label { display: grid; grid-template-columns: 34px minmax(0, 1fr); align-items: center; gap: 6px; color: var(--text-muted); font-size: 10px; }
-.trimControls input { width: 100%; min-width: 0; margin: 0; accent-color: var(--accent); }
+.trimToolbar { min-height: 30px; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.trimToolbar button { min-height: 28px; display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: 4px 8px; background: transparent; color: var(--text-secondary); font-size: 10px; font-weight: 700; }
+.trimToolbar button:hover { border-color: var(--accent); background: var(--accent-soft); }
+.trimToolbar .trimToggleActive { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
+.trimToolbar strong { color: var(--text-muted); font: 600 10px var(--font-mono); }

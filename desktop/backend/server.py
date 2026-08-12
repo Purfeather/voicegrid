@@ -25,6 +25,7 @@ from .repository import (
     clear_outputs,
     close_project,
     create_project,
+    delete_project,
     delete_style,
     delete_voice,
     get_project,
@@ -191,6 +192,13 @@ def project_patch(project_id: str, request: ProjectPatch):
 def project_close(project_id: str):
     try:
         close_project(project_id)
+    except Exception as exc:
+        raise _translate_error(exc) from exc
+
+@app.delete("/api/v2/projects/{project_id}", status_code=204)
+def project_remove(project_id: str):
+    try:
+        delete_project(project_id)
     except Exception as exc:
         raise _translate_error(exc) from exc
 

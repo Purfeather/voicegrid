@@ -87,7 +87,7 @@
 @keyframes spin { to { rotate: 360deg; } }
 .historyList > button { min-width: 0; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 8px; border: 0; border-bottom: 1px solid var(--border-subtle); padding: 9px 10px; background: transparent; color: inherit; text-align: start; }
 .historyList > button:hover, .historyActive { background: var(--surface-hover) !important; }
-.historyPlay { width: 28px; height: 28px; display: grid; place-items: center; border-radius: 50%; background: var(--surface-raised); color: var(--accent); }
+.historyAsset { width: 28px; height: 28px; display: grid; place-items: center; border-radius: var(--radius-sm); background: var(--surface-raised); color: var(--text-muted); }
 .historyList > button > span:nth-child(2) { min-width: 0; display: grid; }
 .historyList strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 10px; }
 .historyList small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-muted); font-size: 9px; }

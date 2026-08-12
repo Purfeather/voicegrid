@@ -242,6 +242,27 @@ def close_project(project_id: str) -> None:
             connection.execute("UPDATE projects SET session_active=0,recovery_available=0,updated_at=? WHERE id=?", (payload["updated_at"], project_id))
 
 
+def delete_project(project_id: str) -> None:
+    project_file = _project_file(project_id)
+    row = DB.one("SELECT id FROM projects WHERE id=?", (project_id,))
+    if row is None or not project_file.exists():
+        raise FileNotFoundError("找不到项目。")
+    active = DB.one(
+        "SELECT id FROM tasks WHERE project_id=? AND status IN ('queued','running') LIMIT 1",
+        (project_id,),
+    )
+    if active is not None:
+        raise ValueError("项目仍有排队或生成中的任务，请先停止任务。")
+    project_root = project_file.parent
+    with _PROJECT_WRITE_LOCK:
+        with DB.transaction() as connection:
+            connection.execute("DELETE FROM outputs WHERE project_id=?", (project_id,))
+            connection.execute("DELETE FROM tasks WHERE project_id=?", (project_id,))
+            connection.execute("DELETE FROM projects WHERE id=?", (project_id,))
+        shutil.rmtree(project_root)
+    _set_index_state(indexed=project_index_count())
+
+
 def mark_interrupted_projects() -> None:
     for row in DB.query("SELECT id,path FROM projects WHERE session_active=1"):
         try:
