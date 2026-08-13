@@ -118,6 +118,8 @@ class RepositoryTests(unittest.TestCase):
             try:
                 with patch.object(repository, "DB", database), patch.object(repository, "PROJECTS_DIR", root / "projects"):
                     created = repository.create_project("验收项目", "Chinese")
+                    self.assertEqual(created["voice"], "无参考音色")
+                    self.assertEqual(repository.list_projects()[0]["voice"], "无参考音色")
                     workspace = WorkspaceDraft.model_validate(created["workspace"])
                     workspace.text = "粘贴后立即保存的新文本"
                     saved = repository.save_project(created["id"], created["revision"], workspace)
@@ -305,6 +307,25 @@ class AudioOutputTests(unittest.TestCase):
             self.assertEqual(target.parent.resolve(), output_directory.resolve())
             self.assertRegex(target.name, r"^工程测试_音色A_001_\d{8}_\d{6}\.wav$")
             self.assertNotIn("BROKEN", target.name)
+
+    def test_reference_free_output_uses_explicit_voice_name(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            raw_dir = root / "raw"
+            raw_dir.mkdir()
+            source = raw_dir / "source.wav"
+            sf.write(source, sine(24000, .2), 24000, subtype="PCM_24")
+            output_directory = root / "outputs"
+            with patch.object(output_engineering, "RAW_OUTPUTS_DIR", raw_dir):
+                metadata = output_engineering.render_output(
+                    str(source),
+                    {"format": "WAV", "sample_rate": 48000, "bit_depth": 24, "channels": 2, "loudness_lufs": None},
+                    output_directory,
+                    "无参考测试",
+                    "无参考音色",
+                    1,
+                )
+            self.assertRegex(Path(metadata["path"]).name, r"^无参考测试_无参考音色_001_\d{8}_\d{6}\.wav$")
 
 
 class ModelContractTests(unittest.TestCase):

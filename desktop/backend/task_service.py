@@ -250,7 +250,7 @@ class TaskService:
             self._publish_task(task_id, progress=.96, message="正在执行输出工程")
             profile = dict(workspace["output_profile"])
             index = len(list_outputs(payload["project_id"], "speech")) + 1
-            voice_name = project.get("voice") or "默认音色"
+            voice_name = project.get("voice") or "无参考音色"
             from .output_engineering import render_output
             output_directory = project_output_directory(payload["project_id"], "speech", create=True)
             metadata = render_output(raw["source_path"], profile, output_directory, project["name"], voice_name, index)

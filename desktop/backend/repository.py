@@ -249,7 +249,7 @@ def list_projects() -> list[dict[str, Any]]:
     rows = DB.query(
         """SELECT p.id,p.name,p.updated_at,p.recovery_available,
         COALESCE(output_totals.output_count,0) AS output_count,
-        COALESCE(v.name,'未选择') AS voice
+        COALESCE(v.name,'无参考音色') AS voice
         FROM projects AS p
         LEFT JOIN (SELECT project_id,COUNT(*) AS output_count FROM outputs GROUP BY project_id) AS output_totals
           ON output_totals.project_id=p.id
@@ -297,9 +297,9 @@ def project_detail(payload: dict[str, Any]) -> dict[str, Any]:
 def _project_voice_name(workspace: dict[str, Any]) -> str:
     asset_id = workspace.get("voice_id") or workspace.get("reference_id")
     if not asset_id:
-        return "未选择"
+        return "无参考音色"
     row = DB.one("SELECT name FROM voices WHERE id=?", (asset_id,))
-    return str(row["name"]) if row else "未选择"
+    return str(row["name"]) if row else "无参考音色"
 
 
 def save_project(
