@@ -27,7 +27,7 @@ export function ModuleTabs({ modules, beforeNavigate }: { modules: ModuleDescrip
               }
             }}
           >
-            <Icon size={15} />
+            <Icon size={16} />
             <span>{descriptor?.name || fallbackName}</span>
             <i className={descriptor?.installed ? styles.installedDot : styles.optionalDot} />
           </button>

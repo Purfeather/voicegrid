@@ -1,12 +1,12 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { AudioLines, Ban, CircleAlert, Download, FileAudio2, FolderOpen, LoaderCircle, RotateCcw, Settings2, Trash2, X } from "lucide-react";
+import { RotateCcw, Settings2, X } from "lucide-react";
 import type { GenerationSnapshot, OutputProfile, OutputRecord, TaskRecord, WorkspaceDraft } from "../../types";
 import { api } from "../../services/api";
-import { Badge, Button, EmptyState, Field, IconButton, Progress, Select } from "../../components/UI";
+import { Badge, Button, EmptyState, Field, IconButton, Select } from "../../components/UI";
 import { formatDuration } from "../../utils/text";
 import styles from "./workbench.module.css";
-import { ModuleActivityActions, ModuleActivityTimeline, ModuleCurrentOutput, ModuleGenerateButton, ModuleGenerateCard } from "../modules/ModuleWorkbenchShell";
+import { ModuleActivityActions, ModuleActivityOutputRow, ModuleActivityTaskRow, ModuleActivityTimeline, ModuleCurrentOutput, ModuleGenerateButton, ModuleGenerateCard, ModuleOutputPlayer } from "../modules/ModuleWorkbenchShell";
 
 interface Props {
   workspace: WorkspaceDraft;
@@ -109,11 +109,7 @@ export function OutputPanel({ workspace, tasks, history, generating, onWorkspace
       </ModuleGenerateCard>
 
       <ModuleCurrentOutput actions={generationSnapshot && <div ref={settingsButton}><Button className={styles.settingsTrigger} variant="ghost" icon={<Settings2 size={14} />} onClick={() => setSettingsOpen((value) => !value)}>生成设定</Button></div>}>
-        {current ? <div className={styles.currentOutput}>
-          <div><span className={styles.outputIcon}><AudioLines size={14} /></span><div><strong title={current.filename}>{current.filename}</strong><span>{current.format} · {current.sample_rate / 1000} kHz · {current.bit_depth} bit · {formatDuration(current.duration)}</span></div></div>
-          <audio controls src={current.artifact_url} />
-          <div className={styles.outputActions}><Button icon={<FolderOpen size={15} />} onClick={() => api.openArtifact(current.id)}>打开目录</Button><a className={styles.downloadButton} href={api.artifactUrl(current.id, true)} download><Download size={15} />下载</a></div>
-        </div> : <EmptyState title="尚未生成音频" detail="生成完成后会先保存到活动记录，再自动出现在这里。" />}
+        <ModuleOutputPlayer module="speech" output={current} emptyDetail="生成完成后会先保存到活动记录，再自动出现在这里。" onOpen={(output) => api.openArtifact(output.id)} detail={(output) => <>{output.format} · {output.sample_rate / 1000} kHz · {output.bit_depth} bit · {formatDuration(output.duration)}</>} />
       </ModuleCurrentOutput>
 
       {settingsOpen && generationSnapshot && createPortal(
@@ -137,18 +133,9 @@ export function OutputPanel({ workspace, tasks, history, generating, onWorkspace
       >
         <div className={styles.activityList}>
           {activity.length ? activity.map((item) => item.kind === "output" ? (
-            <button key={`output-${item.id}`} className={`${styles.activityOutput} ${current?.id === item.output.id ? styles.historyActive : ""}`} onClick={() => setSelectedId(item.output.id)}>
-              <span className={styles.historyAsset}><FileAudio2 size={14} /></span>
-              <span><strong>{item.output.filename}</strong><small>{new Date(item.output.created_at).toLocaleString("zh-CN")} · {formatDuration(item.output.duration)}</small></span>
-              <Badge tone="success">已完成</Badge>
-            </button>
+            <ModuleActivityOutputRow key={`output-${item.id}`} module="speech" output={item.output} selected={current?.id === item.output.id} onSelect={(output) => setSelectedId(output.id)} trailing={<Badge tone="success">已完成</Badge>} />
           ) : (
-            <article key={`task-${item.id}`} className={styles.activityTask}>
-              <header><span>{item.task.status === "running" ? <LoaderCircle className={styles.spin} size={14} /> : <CircleAlert size={14} />}<strong>{item.task.message}</strong></span><div className={styles.taskHeaderActions}><Badge tone={item.task.status === "failed" ? "danger" : item.task.status === "running" ? "accent" : "neutral"}>{item.task.remove_after_stop ? "等待移除" : item.task.status}</Badge><IconButton label={item.task.remove_after_stop ? "任务结束后将自动移除" : "移除任务记录"} disabled={item.task.remove_after_stop} onClick={() => onRemoveTask(item.task.id)}>{item.task.remove_after_stop ? <LoaderCircle className={styles.spin} size={13} /> : <Trash2 size={13} />}</IconButton></div></header>
-              <Progress value={item.task.progress} label={item.task.message} />
-              {item.task.error && <p>{item.task.error}</p>}
-              {(item.task.status === "running" || item.task.status === "queued") && <Button variant="ghost" icon={<Ban size={14} />} onClick={() => onCancel(item.task.id)}>安全停止</Button>}
-            </article>
+            <ModuleActivityTaskRow key={`task-${item.id}`} task={item.task} onCancel={(task) => onCancel(task.id)} onRemove={(task) => onRemoveTask(task.id)} />
           )) : <EmptyState title="暂无任务与输出" detail="生成任务和已保存的输出会统一显示在这里。" />}
         </div>
       </ModuleActivityTimeline>

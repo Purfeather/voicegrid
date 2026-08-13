@@ -1,7 +1,8 @@
 import { useState } from "react";
-import { CheckCircle2, Download, FolderCog, HardDrive, RefreshCw, ShieldCheck, Wrench } from "lucide-react";
+import { Download, FolderCog, HardDrive, RefreshCw, ShieldCheck, Wrench } from "lucide-react";
 import type { ModuleDescriptor } from "../../types";
 import { Badge, Button, Modal, Progress } from "../../components/UI";
+import { ModuleStatusHeader } from "./ModuleWorkbenchShell";
 import styles from "./modules.module.css";
 
 function formatBytes(value: number) { return `${(value / 1024 ** 3).toFixed(1)} GB`; }
@@ -15,13 +16,12 @@ export function ModuleInstallPanel({ module, onDetect, onInstall }: { module: Mo
 
   if (module.installed) return (
     <section className={styles.installReady}>
-      <CheckCircle2 size={18} /><div><strong>模块已安装</strong><span>{module.model_name} 与{module.runtime_mode === "host" ? "主程序环境" : "独立环境"}均已检测到</span></div>
-      <Button variant="ghost" icon={<RefreshCw size={14} />} busy={busy} onClick={() => run(onDetect)}>重新检测</Button>
+      <ModuleStatusHeader module={module.id} title="模块已安装" detail={`${module.model_name} 与${module.runtime_mode === "host" ? "主程序环境" : "独立环境"}均已检测到`} actions={<Button variant="ghost" icon={<RefreshCw size={14} />} busy={busy} onClick={() => run(onDetect)}>重新检测</Button>} />
     </section>
   );
   return <>
     <section className={styles.installPanel}>
-      <header><div><span>MODULE STATUS</span><strong>{repair ? "安装需要修复" : "模型尚未安装"}</strong></div><Badge tone={repair ? "warning" : "neutral"}>可预览界面</Badge></header>
+      <ModuleStatusHeader module={module.id} title={repair ? "安装需要修复" : "模型尚未安装"} actions={<Badge tone={repair ? "warning" : "neutral"}>可预览界面</Badge>} />
       <p>{module.description}</p>
       {installing ? <div className={styles.installProgress}><Progress value={module.install_progress} label="安装进度" /><span>{module.install_message}</span></div> : <div className={styles.installActions}>
         <Button variant="primary" icon={repair ? <Wrench size={15} /> : <Download size={15} />} onClick={() => setConfirmOpen(true)}>{repair ? "安装 / 修复" : "自动安装"}</Button>

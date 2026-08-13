@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { AudioLines, Download, FileAudio2, FolderOpen, Save, Square, Trash2, WandSparkles } from "lucide-react";
+import { Save, Square, WandSparkles } from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
 import type { AppEvent, HardwareMetrics, ModuleDescriptor, OutputRecord, ProjectDetail, RuntimeSnapshot, TaskRecord, ThemeId, VoiceAsset, VoiceDesignDraft, VoicePromptComposer } from "../../types";
 import { api } from "../../services/api";
@@ -9,7 +9,7 @@ import { Badge, Button, EmptyState, Field, IconButton, Modal, Progress, Section,
 import { ModuleTabs } from "../modules/ModuleTabs";
 import { ModuleInstallPanel } from "../modules/ModuleInstallPanel";
 import { OptionalModuleColumn, OptionalModuleWorkbench } from "../modules/OptionalModuleWorkbench";
-import { ModuleActivityActions, ModuleActivityTimeline, ModuleCurrentOutput, ModuleGenerateButton, ModuleGenerateCard, ModuleParameterRail } from "../modules/ModuleWorkbenchShell";
+import { ModuleActivityActions, ModuleActivityOutputRow, ModuleActivityTaskRow, ModuleActivityTimeline, ModuleCurrentOutput, ModuleGenerateButton, ModuleGenerateCard, ModuleOutputPlayer, ModuleParameterRail } from "../modules/ModuleWorkbenchShell";
 import { VoiceAssetLibrary } from "../modules/VoiceAssetLibrary";
 import styles from "./voiceDesign.module.css";
 
@@ -254,12 +254,12 @@ export function VoiceDesignWorkbench(props: Props) {
           </div>
         </ModuleGenerateCard>
         <ModuleCurrentOutput actions={selected && <Button className={styles.compactButton} variant="ghost" icon={<Save size={13} />} onClick={() => { setVoiceName(""); setSaveVoiceOpen(true); }}>保存为音色</Button>}>
-          {selected ? <div className={styles.currentOutput}><div><span className={styles.outputMark}><AudioLines size={15} /></span><div><strong>{selected.filename}</strong><small>{selected.duration.toFixed(1)} 秒 · {selected.sample_rate / 1000} kHz · 原生 WAV</small></div></div><audio controls src={selected.artifact_url} /><div className={styles.outputActions}><Button variant="secondary" icon={<FolderOpen size={14} />} onClick={() => api.openArtifact(selected.id)}>打开目录</Button><a href={api.artifactUrl(selected.id, true)} download><Download size={14} />下载</a></div></div> : <EmptyState title="还没有试听结果" detail="生成完成后会先写入项目历史，再显示在这里。" />}
+          <ModuleOutputPlayer module="voice_design" output={selected} emptyDetail="生成完成后会先写入项目历史，再显示在这里。" onOpen={(output) => api.openArtifact(output.id)} />
         </ModuleCurrentOutput>
         <ModuleActivityTimeline actions={<ModuleActivityActions clearDisabled={!history.length && !tasks.length} onClear={async () => { if (!window.confirm("清除音色设计任务与历史记录吗？音频文件会保留。")) return; await api.clearActivity(project.id, false, "voice_design"); await refresh(); }} onOpenFolder={() => api.openProjectOutputFolder(project.id, "voice_design")} />}>
           <div className={styles.historyList}>
-            {tasks.filter((task) => task.status !== "completed" || !history.some((output) => output.task_id === task.id)).map((task) => <article key={task.id}><button onClick={() => task.status === "running" || task.status === "queued" ? undefined : undefined}><span>{task.message}</span><Badge tone={statusTone(task.status)}>{task.status}</Badge></button><Progress value={task.progress} label={task.message} /><IconButton label="移除此任务" onClick={() => api.removeTask(task.id)}><Trash2 size={13} /></IconButton></article>)}
-            {history.map((output) => <button key={output.id} className={selected?.id === output.id ? styles.selectedHistory : ""} onClick={() => setSelected(output)}><FileAudio2 size={13} /><span><strong>{output.filename}</strong><small>{output.created_at.replace("T", " ")} · {output.duration.toFixed(1)} 秒</small></span><em>WAV</em></button>)}
+            {tasks.filter((task) => task.status !== "completed" || !history.some((output) => output.task_id === task.id)).map((task) => <ModuleActivityTaskRow key={task.id} task={task} onCancel={async (item) => { await api.cancelTask(item.id); }} onRemove={async (item) => { await api.removeTask(item.id); await refresh(); }} />)}
+            {history.map((output) => <ModuleActivityOutputRow key={output.id} module="voice_design" output={output} selected={selected?.id === output.id} onSelect={setSelected} />)}
             {!tasks.length && !history.length && <EmptyState title="暂无设计历史" detail="生成任务和试听结果会按时间保存在当前项目。" />}
           </div>
         </ModuleActivityTimeline>

@@ -32,7 +32,7 @@ export function VoiceAssetLibrary({ voices, selectedId, onSelect, onChanged, onM
     try { await api.deleteVoice(voice.id, true); onRemoved?.(voice); await onChanged(); onMessage("音色已删除。", "success"); }
     catch (error) { onMessage(error instanceof Error ? error.message : "删除失败", "error"); }
   }
-  return <AssetLibrary title="音色库" eyebrow="Saved voices" count={<Badge>{saved.length} 个</Badge>}>
+  return <AssetLibrary title="音色库" eyebrow="SAVED VOICES" count={<Badge>{saved.length} 个</Badge>}>
     <div className={styles.assetRows} aria-disabled={locked} inert={locked}>
       {saved.length ? saved.map((voice) => <div key={voice.id} className={`${styles.assetRow} ${selectedId === voice.id ? styles.assetRowActive : ""}`}>
         <button className={styles.assetSelect} disabled={!onSelect} onClick={() => onSelect?.(voice)}>

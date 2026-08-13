@@ -32,5 +32,42 @@
 .assetActions button { width: 30px; height: 30px; }
 .assetActions .assetPreviewActive { border-color: color-mix(in srgb, var(--accent) 38%, transparent); background: var(--accent-soft); color: var(--accent); }
 .activityActions { display: flex; gap: 2px; }
+.moduleStatusHeader { min-width: 0; min-height: 52px; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 9px; }
+.moduleStatusIcon, .outputIcon, .activityOutputIcon { flex: none; display: grid; place-items: center; border-radius: var(--radius-sm); background: var(--accent-soft); color: var(--accent); }
+.moduleStatusIcon { width: 32px; height: 32px; }
+.moduleStatusHeader > div { min-width: 0; display: grid; }
+.moduleStatusHeader small { color: var(--accent); font: 700 8px var(--font-mono); letter-spacing: .11em; text-transform: uppercase; }
+.moduleStatusHeader strong, .moduleStatusHeader span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.moduleStatusHeader strong { font-size: 12px; }
+.moduleStatusHeader span { color: var(--text-muted); font-size: 9px; }
+.moduleStatusActions { display: flex; gap: 4px; }
+.currentOutput { min-width: 0; display: grid; gap: 9px; padding: 12px; }
+.currentOutput > div:first-child { min-width: 0; display: flex; align-items: center; gap: 8px; }
+.currentOutput > div:first-child > div { min-width: 0; display: grid; }
+.outputIcon { width: 30px; height: 30px; }
+.currentOutput strong, .currentOutput small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.currentOutput strong { font-size: 10px; }
+.currentOutput small { color: var(--text-muted); font-size: 9px; }
+.currentOutput audio { width: 100%; height: 34px; }
+.outputActions { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.outputActions > a { min-height: 36px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; border-radius: var(--radius-sm); background: var(--accent-gradient); color: var(--on-accent); font-size: 11px; font-weight: 700; text-decoration: none; }
+.activityTaskRow { min-width: 0; display: grid; gap: 6px; border-bottom: 1px solid var(--border-subtle); padding: 9px 10px; }
+.activityTaskRow header, .activityTaskRow header > span, .activityTaskRow > div:last-child { display: flex; align-items: center; gap: 6px; }
+.activityTaskRow header { justify-content: space-between; }
+.activityTaskRow header > span { min-width: 0; }
+.activityTaskRow strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 9px; }
+.activityTaskRow p { margin: 0; color: var(--danger); font-size: 9px; }
+.activityTaskRow > div:last-child { justify-content: flex-end; }
+.activityTaskRow button { min-height: 28px; padding-block: 3px; font-size: 9px; }
+.activityOutputRow { min-width: 0; width: 100%; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 8px; border: 0; border-bottom: 1px solid var(--border-subtle); padding: 9px 10px; background: transparent; color: inherit; text-align: start; }
+.activityOutputRow:hover, .activityOutputSelected { background: var(--surface-hover); }
+.activityOutputIcon { width: 28px; height: 28px; }
+.activityOutputRow > span:nth-child(2) { min-width: 0; display: grid; }
+.activityOutputRow strong, .activityOutputRow small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.activityOutputRow strong { font-size: 10px; }
+.activityOutputRow small, .activityOutputRow em { color: var(--text-muted); font-size: 9px; }
+.activityOutputRow em { font-style: normal; font-family: var(--font-mono); font-weight: 700; }
+.spin { animation: module-spin .8s linear infinite; }
+@keyframes module-spin { to { rotate: 360deg; } }
 @media (max-width: 1180px) { .columns { grid-template-columns: minmax(240px, 275px) minmax(360px, 1fr) minmax(280px, 310px); } }
 @media (max-width: 1080px) { .columns { grid-template-columns: minmax(210px, 235px) minmax(350px, 1fr) minmax(270px, 290px); gap: 6px; padding: 6px; } }

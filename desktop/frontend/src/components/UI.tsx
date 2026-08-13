@@ -26,7 +26,7 @@ export function Section({ title, eyebrow, actions, children, className = "" }: H
   return (
     <section className={`${styles.section} ${className}`}>
       <header className={styles.sectionHeader}>
-        <div>{eyebrow && <span className={styles.eyebrow}>{eyebrow}</span>}<h2>{title}</h2></div>
+        <div>{eyebrow && <span className={styles.eyebrow}>{eyebrow.toUpperCase()}</span>}<h2>{title}</h2></div>
         {actions && <div className={styles.actions}>{actions}</div>}
       </header>
       {children}

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { AudioLines, Download, FileAudio2, FolderOpen, Heart, Square, Trash2 } from "lucide-react";
+import { AudioLines, Download, FolderOpen, Heart, Square } from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
 import type { HardwareMetrics, ModuleDescriptor, OutputRecord, ProjectDetail, RuntimeSnapshot, SoundEffectDraft, TaskRecord, ThemeId } from "../../types";
 import { api } from "../../services/api";
@@ -9,7 +9,7 @@ import { Badge, Button, EmptyState, Field, IconButton, Progress, Section, TextAr
 import { ModuleInstallPanel } from "../modules/ModuleInstallPanel";
 import { ModuleTabs } from "../modules/ModuleTabs";
 import { OptionalModuleColumn, OptionalModuleWorkbench } from "../modules/OptionalModuleWorkbench";
-import { AssetLibrary, ModuleActivityActions, ModuleActivityTimeline, ModuleCurrentOutput, ModuleGenerateButton, ModuleGenerateCard, ModuleParameterRail } from "../modules/ModuleWorkbenchShell";
+import { AssetLibrary, ModuleActivityActions, ModuleActivityOutputRow, ModuleActivityTaskRow, ModuleActivityTimeline, ModuleCurrentOutput, ModuleGenerateButton, ModuleGenerateCard, ModuleOutputPlayer, ModuleParameterRail } from "../modules/ModuleWorkbenchShell";
 import { SoundEffectAssetRows } from "./SoundEffectAssetRows";
 import styles from "./soundEffect.module.css";
 
@@ -198,7 +198,7 @@ export function SoundEffectWorkbench(props: Props) {
     </ModuleParameterRail>}>
       <OptionalModuleColumn label="音效模块状态">
         {module && <ModuleInstallPanel module={module} onDetect={async () => { await api.detectModule("sound_effect"); await props.onModulesChanged(); }} onInstall={async (repair) => { await api.installModule("sound_effect", repair); await props.onModulesChanged(); props.onMessage("音效模型安装已在后台开始。", "success"); }} />}
-        <AssetLibrary title="项目音效素材库" eyebrow="Project SFX library" count={<Badge tone={history.length ? "accent" : "neutral"}>{history.length} 个</Badge>}>
+        <AssetLibrary title="项目音效素材库" eyebrow="PROJECT SFX LIBRARY" count={<Badge tone={history.length ? "accent" : "neutral"}>{history.length} 个</Badge>}>
           {interactive ? <SoundEffectAssetRows outputs={history} selectedId={selected?.id} onSelect={setSelected} onFavorite={toggleFavorite} onRename={renameAsset} onDelete={deleteAsset} onMessage={props.onMessage} /> : <><div className={styles.assetList}>{["雨夜远处车辆驶过", "金属门缓慢开启", "林间风吹树叶"].map((name, index) => <article key={name}><span><AudioLines size={15} /></span><div><strong>{name}</strong><small>示例内容 · {8 + index * 3} 秒</small></div><Heart size={14} /><em>WAV</em></article>)}</div><EmptyState title="安装后建立项目素材库" detail="真实结果将自动进入当前项目，支持试听、收藏、重命名、下载和删除。" /></>}
         </AssetLibrary>
       </OptionalModuleColumn>
@@ -221,12 +221,12 @@ export function SoundEffectWorkbench(props: Props) {
           </div>
         </ModuleGenerateCard>
         <ModuleCurrentOutput actions={selected?.favorite ? <Badge tone="accent"><Heart size={11} fill="currentColor" /> 已收藏</Badge> : undefined}>
-          {interactive && selected ? <div className={styles.currentOutput}><div><span className={styles.outputMark}><AudioLines size={15} /></span><div><strong>{selected.filename}</strong><small>{selected.duration.toFixed(1)} 秒 · {selected.sample_rate / 1000} kHz · {selected.channels === 1 ? "单声道" : `${selected.channels} 声道`}</small></div></div><audio controls src={selected.artifact_url} /><div className={styles.outputActions}><Button variant="secondary" icon={<FolderOpen size={14} />} onClick={() => api.openArtifact(selected.id)}>打开目录</Button><a href={api.artifactUrl(selected.id, true)} download><Download size={14} />下载</a></div></div> : interactive ? <EmptyState title="还没有音效输出" detail="生成完成后会先写入项目素材库，再显示在这里。" /> : <><div className={styles.previewAsset}><span><AudioLines size={20} /></span><div><strong>雨夜城市街道</strong><small>48 kHz · 单声道 · 10 秒</small></div></div><div className={styles.fakeWave}>{Array.from({ length: 72 }, (_, index) => <i key={index} style={{ height: `${12 + ((index * 17) % 48)}%` }} />)}</div><div className={styles.lockedActions}><Button variant="secondary" icon={<FolderOpen size={14} />} disabled>打开目录</Button><Button variant="primary" icon={<Download size={14} />} disabled>下载</Button></div></>}
+          {interactive ? <ModuleOutputPlayer module="sound_effect" output={selected} emptyDetail="生成完成后会先写入项目素材库，再显示在这里。" onOpen={(output) => api.openArtifact(output.id)} /> : <><div className={styles.previewAsset}><span><AudioLines size={20} /></span><div><strong>雨夜城市街道</strong><small>48 kHz · 单声道 · 10 秒</small></div></div><div className={styles.fakeWave}>{Array.from({ length: 72 }, (_, index) => <i key={index} style={{ height: `${12 + ((index * 17) % 48)}%` }} />)}</div><div className={styles.lockedActions}><Button variant="secondary" icon={<FolderOpen size={14} />} disabled>打开目录</Button><Button variant="primary" icon={<Download size={14} />} disabled>下载</Button></div></>}
         </ModuleCurrentOutput>
         <ModuleActivityTimeline actions={<ModuleActivityActions clearDisabled={!history.length && !tasks.length} onClear={async () => { if (!window.confirm("清除音效任务与历史记录吗？音频文件会保留。")) return; await api.clearActivity(project.id, false, "sound_effect"); await refreshActivity(); }} onOpenFolder={() => api.openProjectOutputFolder(project.id, "sound_effect")} />}>
           <div className={styles.historyList}>
-            {visibleTasks.map((task) => <article key={task.id}><div><span>{task.message}</span><Badge tone={statusTone(task.status)}>{task.status}</Badge></div><Progress value={task.progress} label={task.message} />{(task.status === "running" || task.status === "queued") && <IconButton label="安全停止" onClick={() => api.cancelTask(task.id)}><Square size={13} /></IconButton>}<IconButton label="移除此任务" onClick={async () => { await api.removeTask(task.id); await refreshActivity(); }}><Trash2 size={13} /></IconButton></article>)}
-            {history.map((output) => <button key={output.id} className={selected?.id === output.id ? styles.selectedHistory : ""} onClick={() => setSelected(output)}><FileAudio2 size={13} /><span><strong>{output.filename}</strong><small>{output.created_at.replace("T", " ")} · {output.duration.toFixed(1)} 秒</small></span>{output.favorite && <Heart size={11} fill="currentColor" />}<em>WAV</em></button>)}
+            {visibleTasks.map((task) => <ModuleActivityTaskRow key={task.id} task={task} onCancel={async (item) => { await api.cancelTask(item.id); }} onRemove={async (item) => { await api.removeTask(item.id); await refreshActivity(); }} />)}
+            {history.map((output) => <ModuleActivityOutputRow key={output.id} module="sound_effect" output={output} selected={selected?.id === output.id} onSelect={setSelected} trailing={output.favorite ? <Heart size={11} fill="currentColor" /> : <em>WAV</em>} />)}
             {!tasks.length && !history.length && <EmptyState title="暂无任务与输出" detail="生成任务和音效结果会按时间保存在当前项目。" />}
           </div>
         </ModuleActivityTimeline>
