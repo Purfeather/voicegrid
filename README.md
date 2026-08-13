@@ -32,7 +32,7 @@
 - SQLite 索引：`data/app.db`
 - 音色库：`data/voices`
 - 临时上传：`data/uploads`
-- 项目输出：每个项目自己的 `outputs` 目录，或用户选择的目录
+- 项目输出：`data/projects/<项目ID>/outputs` 下的模块固定目录
 - 旧版归档：`archive/pre-rebuild-20260811`
 
 项目文件是可恢复的事实来源；SQLite 索引可从项目文件重建。历史记录默认只清除数据库记录，只有再次确认才会删除音频文件。
@@ -40,6 +40,7 @@
 ## 开发与验证
 
 - 前端构建：在 `desktop/frontend` 中运行 `npm.cmd run build`
+- 完整质量检查：运行根目录 `quality-check.bat`，依次验证编码、后端、前端、API 类型、设计令牌、构建产物与 Git 差异
 - 前端测试：在 `desktop/frontend` 中运行 `npm.cmd test -- --run`
 - 后端测试：运行 `.venv\Scripts\python.exe -m unittest discover -s desktop\tests -v`
 - 启动快速回归：运行 `.venv\Scripts\python.exe startup-lab\run_startup_lab.py --suite quick`

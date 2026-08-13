@@ -13,6 +13,7 @@ from typing import Any
 import uvicorn
 
 from desktop.backend.paths import ASSETS_DIR, LOGS_DIR, ROOT
+from desktop.native.build_info import BUILD_INFO
 
 
 HOST = "127.0.0.1"
@@ -146,7 +147,7 @@ class NativeHost:
         self.start_server()
         DESKTOP.register(self.command)
         self.window = webview.create_window(
-            "声格 VoiceGrid 2.0（旧启动链）",
+            f"{BUILD_INFO.window_title}（旧启动链）",
             APP_URL,
             js_api=NativeApi(self),
             width=1600,

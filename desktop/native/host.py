@@ -106,7 +106,7 @@ class NativeSplash:
             brand_copy.pack(side="left", padx=12)
             tk.Label(brand_copy, text=BUILD_INFO.product, bg="#090a0b", fg="#f4f6f8", font=("Microsoft YaHei UI", 12, "bold")).pack(anchor="w")
             tk.Label(brand_copy, text=f"{BUILD_INFO.brand} · {BUILD_INFO.display_version}", bg="#090a0b", fg="#9aa2ad", font=("Microsoft YaHei UI", 9)).pack(anchor="w", pady=(3, 0))
-            tk.Label(brand_copy, text="作者：Wang Xiaohan", bg="#090a0b", fg="#9aa2ad", font=("Segoe UI", 8)).pack(anchor="w", pady=(3, 0))
+            tk.Label(brand_copy, text=f"作者：{BUILD_INFO.author}", bg="#090a0b", fg="#9aa2ad", font=("Segoe UI", 8)).pack(anchor="w", pady=(3, 0))
 
             content = tk.Frame(shell, bg="#090a0b")
             content.pack(fill="both", expand=True, pady=(34, 0))

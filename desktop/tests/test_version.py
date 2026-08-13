@@ -6,21 +6,16 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[2]
-INTERNAL_VERSION = "2.0.0-dev"
-DISPLAY_VERSION = "2.0"
-
-
 class VersionConsistencyTests(unittest.TestCase):
     def test_machine_readable_versions_match_build_manifest(self) -> None:
         build = json.loads((ROOT / "build.json").read_text(encoding="utf-8"))
         package = json.loads((ROOT / "desktop" / "frontend" / "package.json").read_text(encoding="utf-8"))
         package_lock = json.loads((ROOT / "desktop" / "frontend" / "package-lock.json").read_text(encoding="utf-8"))
 
-        self.assertEqual(build["version"], INTERNAL_VERSION)
-        self.assertEqual(package["version"], INTERNAL_VERSION)
-        self.assertEqual(package_lock["version"], INTERNAL_VERSION)
-        self.assertEqual(package_lock["packages"][""]["version"], INTERNAL_VERSION)
-        self.assertEqual(build["build_id"], "LRYY-VOICEGRID-2.0-DEV-20260812")
+        self.assertEqual(package["version"], build["version"])
+        self.assertEqual(package_lock["version"], build["version"])
+        self.assertEqual(package_lock["packages"][""]["version"], build["version"])
+        self.assertTrue(build["build_id"])
 
     def test_visible_shells_use_display_name(self) -> None:
         for relative in (
@@ -30,7 +25,16 @@ class VersionConsistencyTests(unittest.TestCase):
             "desktop/frontend/src/components/TitleBar.tsx",
         ):
             source = (ROOT / relative).read_text(encoding="utf-8")
-            self.assertIn(DISPLAY_VERSION, source, relative)
+            self.assertIn("VoiceGrid", source, relative)
+
+    def test_runtime_build_info_comes_from_manifest(self) -> None:
+        from desktop.native.build_info import BUILD_INFO
+
+        build = json.loads((ROOT / "build.json").read_text(encoding="utf-8"))
+        self.assertEqual(BUILD_INFO.product, build["product"])
+        self.assertEqual(BUILD_INFO.brand, build["brand"])
+        self.assertEqual(BUILD_INFO.author, build["author"])
+        self.assertEqual(BUILD_INFO.version, build["version"])
 
     def test_splash_shells_use_the_accent_brand_icon(self) -> None:
         expected_asset = "voicegrid-icon-accent"

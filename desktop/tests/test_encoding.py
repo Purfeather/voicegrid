@@ -1,38 +1,26 @@
 from __future__ import annotations
 
-import os
+import subprocess
 import unittest
 from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[2]
-SKIP_DIRS = {
-    ".venv",
-    ".rebuild-cache",
-    "__pycache__",
-    "archive",
-    "cache",
-    "design-system",
-    "dist",
-    "LICENSES",
-    "logs",
-    "models",
-    "node_modules",
-    "optional-models",
-    "outputs",
-    "projects",
-    "references",
-    "runtimes",
-}
 TEXT_EXTENSIONS = {".css", ".html", ".js", ".json", ".jsx", ".log", ".md", ".py", ".ts", ".tsx", ".txt"}
 
 
 def project_files():
-    for current, directories, filenames in os.walk(ROOT):
-        directories[:] = [name for name in directories if name not in SKIP_DIRS]
-        folder = Path(current)
-        for filename in filenames:
-            yield folder / filename
+    result = subprocess.run(
+        ["git", "-c", f"safe.directory={ROOT.as_posix()}", "ls-files", "-z"],
+        cwd=ROOT,
+        check=True,
+        capture_output=True,
+    )
+    for relative in result.stdout.decode("utf-8").split("\0"):
+        if relative:
+            path = ROOT / relative
+            if path.is_file():
+                yield path
 
 
 class EncodingPolicyTests(unittest.TestCase):

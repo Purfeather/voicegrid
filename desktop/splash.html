@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>声格 VoiceGrid 2.0</title>
+  <title>声格 VoiceGrid</title>
   <style>
     :root {
       color-scheme: dark;
@@ -80,7 +80,7 @@
     <header class="titlebar">
       <div class="drag pywebview-drag-region">
         <img src="./assets/voicegrid-icon-accent.svg" alt="声格 VoiceGrid" />
-        <div class="brand"><strong>声格 VoiceGrid</strong><span>龙融影业 · 2.0 · 作者 Wang Xiaohan</span></div>
+        <div class="brand"><strong id="build-product">声格 VoiceGrid</strong><span id="build-attribution">龙融影业</span></div>
       </div>
       <div class="window-controls">
         <button type="button" aria-label="最小化" data-action="minimize">
@@ -118,11 +118,18 @@
             <button type="button" class="danger" data-action="exit">退出</button>
           </div>
         </div>
-        <div class="foot"><span>2.0.0-dev</span><span id="elapsed">准备中</span></div>
+        <div class="foot"><span id="build-version">开发版</span><span id="elapsed">准备中</span></div>
       </section>
     </main>
   </div>
   <script>
+    fetch("../build.json").then((response) => response.json()).then((build) => {
+      const displayVersion = String(build.version || "").split("-")[0].split(".").slice(0, 2).join(".");
+      document.title = `${build.product} ${displayVersion}`;
+      document.getElementById("build-product").textContent = build.product;
+      document.getElementById("build-attribution").textContent = `${build.brand} · ${displayVersion} · 作者 ${build.author}`;
+      document.getElementById("build-version").textContent = build.version;
+    }).catch(() => {});
     const phases = ["shell", "backend_import", "database", "project_recovery", "api", "frontend", "ready"];
     const phaseNames = {
       shell: "正在创建桌面窗口",
