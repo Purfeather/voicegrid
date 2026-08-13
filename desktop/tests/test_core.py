@@ -48,7 +48,7 @@ class RepositoryTests(unittest.TestCase):
             finally:
                 database.close()
 
-    def test_legacy_project_is_migrated_when_opened(self) -> None:
+    def test_legacy_project_is_rejected_without_partial_migration(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             database = Database(root / "app.db")
@@ -66,11 +66,10 @@ class RepositoryTests(unittest.TestCase):
                     payload["workspace"]["target_duration_seconds"] = 30
                     payload["workspace"]["natural_speed"] = 1.15
                     project_file.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
-                    opened = repository.get_project(created["id"])
-                    self.assertFalse(opened["workspace"]["manual_speed_enabled"])
-                    self.assertEqual(opened["workspace"]["manual_speed_level"], "中等")
-                    self.assertNotIn("natural_speed", opened["workspace"])
-                    self.assertNotIn("target_duration_enabled", opened["workspace"])
+                    before = project_file.read_bytes()
+                    with self.assertRaisesRegex(ValueError, "仅支持 VoiceGrid 2.0"):
+                        repository.get_project(created["id"])
+                    self.assertEqual(project_file.read_bytes(), before)
             finally:
                 database.close()
 
@@ -490,6 +489,30 @@ class ModelContractTests(unittest.TestCase):
         self.assertEqual(MODEL_LOCKS["openmoss/MOSS-VoiceGenerator"]["file_count"], 17)
         self.assertEqual(MODEL_LOCKS["openmoss/MOSS-Audio-Tokenizer"]["total_bytes"], 7_101_116_247)
         self.assertEqual(MODEL_LOCKS["openmoss/MOSS-SoundEffect-v2.0"]["manifest_sha256"], "b50a3034b1abae0bfcc7435e079e5c03705b1a61ee17f22aaae1941126c7daf7")
+
+    def test_module_service_keeps_catalog_and_integrity_compatibility_exports(self) -> None:
+        from desktop.backend import module_catalog, module_integrity, module_service
+
+        self.assertIs(module_service.MODEL_LOCKS, module_catalog.MODEL_LOCKS)
+        self.assertIs(module_service.MODULES, module_catalog.MODULES)
+        self.assertIs(module_service.RUNTIME_PYTHON_LOCKS, module_catalog.RUNTIME_PYTHON_LOCKS)
+        self.assertIs(module_service.RUNTIME_VERSION_LOCKS, module_catalog.RUNTIME_VERSION_LOCKS)
+        self.assertIs(module_service._model_complete, module_integrity.model_complete)
+
+    def test_module_catalog_owns_paths_and_jobs_for_each_module(self) -> None:
+        from desktop.backend.module_catalog import manual_paths, model_ids, runtime_dir
+
+        self.assertEqual(model_ids("speech"), [
+            "openmoss/MOSS-TTS-Local-Transformer-v1.5",
+            "openmoss/MOSS-Audio-Tokenizer-v2",
+        ])
+        self.assertEqual(model_ids("voice_design"), [
+            "openmoss/MOSS-VoiceGenerator",
+            "openmoss/MOSS-Audio-Tokenizer",
+        ])
+        self.assertEqual(model_ids("sound_effect"), ["openmoss/MOSS-SoundEffect-v2.0"])
+        self.assertIsNone(runtime_dir("speech"))
+        self.assertEqual(manual_paths("voice_design")[-1], "runtimes\\moss-voice-generator")
 
     def test_manifest_digest_is_order_independent(self) -> None:
         class Entry:

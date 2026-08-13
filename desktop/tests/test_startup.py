@@ -8,10 +8,20 @@ from pathlib import Path
 from unittest.mock import patch
 
 from desktop.backend import repository
-from desktop.backend.database import Database
+from desktop.backend.database import DATABASE_SCHEMA_VERSION, Database
 
 
 class StartupDataTests(unittest.TestCase):
+    def test_new_database_uses_current_schema_version(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            database = Database(Path(temporary) / "app.db")
+            database.initialize()
+            try:
+                self.assertEqual(database.one("PRAGMA user_version")[0], DATABASE_SCHEMA_VERSION)
+                self.assertEqual(database.health()["schema_version"], DATABASE_SCHEMA_VERSION)
+            finally:
+                database.close()
+
     def test_project_list_uses_one_batched_query_for_two_hundred_projects(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -23,7 +33,7 @@ class StartupDataTests(unittest.TestCase):
                 folder = projects / project_id
                 folder.mkdir()
                 payload = {
-                    "schema_version": 2,
+                    "schema_version": 4,
                     "id": project_id,
                     "name": f"Project {index + 1}",
                     "created_at": timestamp,
@@ -31,7 +41,8 @@ class StartupDataTests(unittest.TestCase):
                     "revision": 1,
                     "session_active": False,
                     "recovery_available": False,
-                    "workspace": {"voice_id": None, "reference_id": None},
+                    "workspaces": {},
+                    "output_snapshots": {},
                 }
                 (folder / "project.json").write_text(json.dumps(payload), encoding="utf-8")
             database = Database(root / "app.db")

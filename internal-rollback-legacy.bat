@@ -8,5 +8,6 @@ if not exist ".venv\Scripts\pythonw.exe" (
   exit /b 1
 )
 
+rem Compatibility wrapper: desktop.host_legacy delegates to desktop.legacy.host.
 start "" ".venv\Scripts\pythonw.exe" -m desktop.host_legacy
 exit /b 0

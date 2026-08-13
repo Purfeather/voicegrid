@@ -11,6 +11,7 @@ from pathlib import Path
 from fastapi import FastAPI, File, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 
+from desktop.native.build_info import BUILD_INFO
 from .database import DB
 from .defaults import LANGUAGES, PARAMETER_PRESETS
 from .desktop_control import DESKTOP
@@ -113,7 +114,7 @@ async def lifespan(_: FastAPI):
     DB.close()
 
 
-app = FastAPI(title="声格 VoiceGrid", version="2.0.0-dev", lifespan=lifespan, docs_url=None, redoc_url=None)
+app = FastAPI(title=BUILD_INFO.product, version=BUILD_INFO.version, lifespan=lifespan, docs_url=None, redoc_url=None)
 
 
 def _translate_error(exc: Exception) -> HTTPException:
@@ -129,9 +130,9 @@ def _translate_error(exc: Exception) -> HTTPException:
 @app.get("/api/v2/bootstrap")
 def bootstrap():
     return {
-        "brand": "龙融影业",
-        "product": "声格 VoiceGrid",
-        "version": "2.0.0-dev",
+        "brand": BUILD_INFO.brand,
+        "product": BUILD_INFO.product,
+        "version": BUILD_INFO.version,
         "projects": list_projects(),
         "voices": list_voices(),
         "styles": list_styles(),
@@ -149,16 +150,16 @@ def health():
         "api": "ready",
         "database": DB.health(),
         "project_index": project_index_status(),
-        "version": "2.0.0-dev",
+        "version": BUILD_INFO.version,
     }
 
 
 @app.get("/api/v2/bootstrap/core")
 def bootstrap_core():
     return {
-        "brand": "龙融影业",
-        "product": "声格 VoiceGrid",
-        "version": "2.0.0-dev",
+        "brand": BUILD_INFO.brand,
+        "product": BUILD_INFO.product,
+        "version": BUILD_INFO.version,
         "languages": LANGUAGES,
         "model_capabilities": {
             "key": "moss-tts-1.5",

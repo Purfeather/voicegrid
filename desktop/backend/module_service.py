@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 import os
-import hashlib
 import shutil
 import subprocess
 import sys
@@ -12,252 +11,42 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from .diagnostics import append_diagnostic_log
 from .events import EVENTS
+from .module_catalog import (
+    MODEL_LOCKS,
+    MODULES,
+    RUNTIME_IMPORT_CHECKS,
+    RUNTIME_PYTHON_LOCKS,
+    RUNTIME_VERSION_LOCKS,
+    SOUND_EFFECT_SOURCE_REVISION,
+    SOUND_EFFECT_SOURCE_TREE_SHA256,
+    manual_paths,
+    model_ids,
+    model_jobs,
+    runtime_dir,
+)
+from .module_integrity import (
+    detect_module,
+    model_complete,
+    python312_venv_command,
+    requirements_sha256,
+    runtime_complete,
+    runtime_python,
+    sound_effect_source_dir,
+)
 from .paths import (
     MODULE_STATE_DIR,
     ROOT,
-    SOUND_EFFECT_MODEL_DIR,
-    SOUND_EFFECT_RUNTIME_DIR,
     SOUND_EFFECT_SOURCE_DIR,
-    MOSS_CODEC_DIR,
-    MOSS_MODEL_DIR,
-    VOICE_GENERATOR_CODEC_DIR,
-    VOICE_GENERATOR_MODEL_DIR,
-    VOICE_GENERATOR_RUNTIME_DIR,
 )
-from .diagnostics import append_diagnostic_log
-
-
-MODEL_LOCKS: dict[str, dict[str, Any]] = {
-    "openmoss/MOSS-TTS-Local-Transformer-v1.5": {
-        "revision": "master",
-        "file_count": 19,
-        "total_bytes": 9_116_899_103,
-        "manifest_sha256": "2ec85506d2450ce65beb83164ecedc3cf81fb38bbdedf3c0a5e35c0b49cf5063",
-    },
-    "openmoss/MOSS-Audio-Tokenizer-v2": {
-        "revision": "master",
-        "file_count": 15,
-        "total_bytes": 8_498_219_117,
-        "manifest_sha256": "84fd35a7f8bc745b6c4832d7d7f2d221756ff261c6f6a860d8f40a086a7f48ba",
-    },
-    "openmoss/MOSS-VoiceGenerator": {
-        "revision": "master",
-        "file_count": 17,
-        "total_bytes": 4_244_249_582,
-        "manifest_sha256": "298fbb371515291742daa6e537e5833cd3c7b5eb3a3e09b16aaaeaac0577f318",
-    },
-    "openmoss/MOSS-Audio-Tokenizer": {
-        "revision": "master",
-        "file_count": 14,
-        "total_bytes": 7_101_116_247,
-        "manifest_sha256": "c20df5cbcba8b90d599a5389936ce98d7fcdb9d86556e724b191733f9f6211ac",
-    },
-    "openmoss/MOSS-SoundEffect-v2.0": {
-        "revision": "master",
-        "file_count": 18,
-        "total_bytes": 11_230_171_166,
-        "manifest_sha256": "b50a3034b1abae0bfcc7435e079e5c03705b1a61ee17f22aaae1941126c7daf7",
-    },
-}
-
-
-MODULES: dict[str, dict[str, Any]] = {
-    "speech": {
-        "name": "语音合成",
-        "model_name": "MOSS-TTS Local Transformer v1.5 · 4B",
-        "model_id": "openmoss/MOSS-TTS-Local-Transformer-v1.5",
-        "description": "参考音色克隆、情感表演、长文本切分与工程化交付。",
-        "disk_gb": 16.4,
-        "runtime_python": "主程序环境",
-        "runtime_mode": "host",
-        "engine_available": True,
-    },
-    "voice_design": {
-        "name": "音色设计",
-        "model_name": "MOSS-VoiceGenerator · 1.7B",
-        "model_id": "openmoss/MOSS-VoiceGenerator",
-        "codec_id": "openmoss/MOSS-Audio-Tokenizer",
-        "description": "无需参考音频，通过自然语言创建可供配音使用的新音色。",
-        "disk_gb": 14.0,
-        "runtime_python": "Python 3.12（独立环境）",
-        "runtime_mode": "isolated",
-        "engine_available": True,
-    },
-    "sound_effect": {
-        "name": "音效生成",
-        "model_name": "MOSS-SoundEffect v2.0",
-        "model_id": "openmoss/MOSS-SoundEffect-v2.0",
-        "description": "根据中英文描述生成最长 30 秒的 48 kHz 音效。",
-        "disk_gb": 18.0,
-        "runtime_python": "Python 3.12（必需）",
-        "runtime_mode": "isolated",
-        "engine_available": True,
-        "engine_message": "使用 Python 3.12 独立工作进程、FP16 与阶段式低显存调度。",
-    },
-}
-
-RUNTIME_IMPORT_CHECKS = {
-    "voice_design": "import torch, torchaudio, transformers, modelscope, modelscope_hub, soundfile, librosa, tiktoken, accelerate, safetensors, orjson, tqdm, yaml, einops, scipy, psutil, packaging",
-    "sound_effect": "import torch, torchaudio, torchvision, transformers, modelscope_hub, soundfile, diffusers, audiotools, moss_soundeffect_v2; from moss_soundeffect_v2 import MossSoundEffectPipeline",
-}
-RUNTIME_VERSION_LOCKS = {
-    "voice_design": {
-        "torch": "2.9.1+cu128",
-        "torchaudio": "2.9.1+cu128",
-        "transformers": "5.0.0",
-        "modelscope": "1.39.1",
-        "modelscope-hub": "0.2.0",
-        "accelerate": "1.14.0",
-        "safetensors": "0.6.2",
-        "numpy": "2.1.0",
-        "orjson": "3.11.4",
-        "tqdm": "4.67.1",
-        "PyYAML": "6.0.3",
-        "einops": "0.8.1",
-        "scipy": "1.16.2",
-        "librosa": "0.11.0",
-        "tiktoken": "0.12.0",
-        "soundfile": "0.14.0",
-        "psutil": "7.2.2",
-        "packaging": "26.3",
-    },
-    "sound_effect": {
-        "moss-soundeffect-v2": "0.1.0",
-        "torch": "2.9.0+cu128",
-        "torchaudio": "2.9.0+cu128",
-        "torchvision": "0.24.0+cu128",
-        "transformers": "4.57.1",
-        "modelscope": "1.39.1",
-        "modelscope-hub": "0.2.0",
-        "einops": "0.8.2",
-        "pillow": "12.2.0",
-        "tqdm": "4.67.3",
-        "safetensors": "0.7.0",
-        "numpy": "1.26.4",
-        "diffusers": "0.37.1",
-        "ftfy": "6.3.1",
-        "regex": "2026.4.4",
-        "soundfile": "0.13.1",
-        "descript-audiotools": "0.7.2",
-    },
-}
-RUNTIME_PYTHON_LOCKS = {
-    "voice_design": (3, 12),
-    "sound_effect": (3, 12),
-}
-
-SOUND_EFFECT_SOURCE_REVISION = "58b20a0d5fcc6766658d50967a90a9d890009a46"
-SOUND_EFFECT_SOURCE_TREE_SHA256 = "09dc5d50d7e9659383ab693f0addc85a17bb2855e6dbbc2929f84d99538bac70"
 
 
 def _append_module_log(module_id: str, message: str) -> None:
     append_diagnostic_log(f"module-install-{module_id}", message)
 
 
-def _runtime_python(runtime: Path) -> Path:
-    return runtime / "Scripts" / "python.exe"
-
-
-def _safe_manifest_file(root: Path, relative: str) -> Path | None:
-    candidate = (root / relative).resolve()
-    resolved_root = root.resolve()
-    if candidate == resolved_root or resolved_root not in candidate.parents:
-        return None
-    return candidate
-
-
-def _lock_for_model_path(path: Path) -> dict[str, Any] | None:
-    repo_id = {
-        "MOSS-TTS-Local-Transformer-v1.5": "openmoss/MOSS-TTS-Local-Transformer-v1.5",
-        "MOSS-Audio-Tokenizer-v2": "openmoss/MOSS-Audio-Tokenizer-v2",
-        "MOSS-VoiceGenerator": "openmoss/MOSS-VoiceGenerator",
-        "MOSS-Audio-Tokenizer": "openmoss/MOSS-Audio-Tokenizer",
-        "MOSS-SoundEffect-v2.0": "openmoss/MOSS-SoundEffect-v2.0",
-    }.get(path.name)
-    return MODEL_LOCKS.get(repo_id or "")
-
-
-def _model_complete(path: Path, module_id: str) -> bool:
-    if not path.is_dir():
-        return False
-    marker = path / ".voicegrid-install.json"
-    if marker.is_file():
-        try:
-            state = json.loads(marker.read_text(encoding="utf-8"))
-            lock = MODEL_LOCKS.get(str(state.get("repo_id")))
-            if lock and state.get("manifest_sha256") == lock["manifest_sha256"]:
-                files = list(state.get("files") or [])
-                if len(files) != int(lock["file_count"]) or sum(int(item.get("size", 0)) for item in files) != int(lock["total_bytes"]):
-                    return False
-                for item in files:
-                    candidate = _safe_manifest_file(path, str(item.get("path") or ""))
-                    if candidate is None or not candidate.is_file() or candidate.stat().st_size != int(item.get("size", -1)):
-                        return False
-                return True
-        except Exception:
-            return False
-    required = "model_index.json" if module_id == "sound_effect" else "config.json"
-    config = path / required
-    weights = list(path.rglob("*.safetensors"))
-    lock = _lock_for_model_path(path)
-    content_files = [
-        item for item in path.rglob("*")
-        if item.is_file() and item.name != ".voicegrid-install.json" and ".cache" not in item.parts
-    ]
-    return bool(
-        lock
-        and config.is_file()
-        and config.stat().st_size > 0
-        and weights
-        and all(item.stat().st_size > 0 for item in weights)
-        and len(content_files) == int(lock["file_count"])
-        and sum(item.stat().st_size for item in content_files) == int(lock["total_bytes"])
-    )
-
-
-def _requirements_sha256(path: Path) -> str:
-    return hashlib.sha256(path.read_bytes()).hexdigest()
-
-
-def _sound_effect_source_dir() -> Path | None:
-    configured = os.environ.get("VOICEGRID_SOUND_EFFECT_SOURCE", "").strip()
-    candidates = [
-        Path(configured).expanduser() if configured else None,
-        SOUND_EFFECT_SOURCE_DIR / "moss_soundeffect_v2",
-        ROOT / "desktop" / "workers" / "vendor" / "moss_soundeffect_v2",
-    ]
-    for candidate in candidates:
-        if candidate is None:
-            continue
-        resolved = candidate.resolve()
-        pyproject = resolved / "pyproject.toml"
-        pipeline = resolved / "pipeline_moss_soundeffect.py"
-        marker = resolved / ".voicegrid-source.json"
-        marker_valid = False
-        if marker.is_file():
-            try:
-                source_state = json.loads(marker.read_text(encoding="utf-8"))
-                marker_valid = (
-                    source_state.get("revision") == SOUND_EFFECT_SOURCE_REVISION
-                    and source_state.get("tree_sha256") == SOUND_EFFECT_SOURCE_TREE_SHA256
-                )
-            except Exception:
-                marker_valid = False
-        if pyproject.is_file() and pipeline.is_file() and (configured or marker_valid):
-            return resolved
-    return None
-
-
-def _python312_venv_command(destination: Path) -> list[str]:
-    configured = os.environ.get("VOICEGRID_PYTHON312", "").strip()
-    if configured:
-        return [configured, "-m", "venv", str(destination)]
-    if sys.version_info[:2] == (3, 12):
-        return [sys.executable, "-m", "venv", str(destination)]
-    if os.name == "nt":
-        return ["py", "-3.12", "-m", "venv", str(destination)]
-    return ["python3.12", "-m", "venv", str(destination)]
+_model_complete = model_complete
 
 
 class ModuleService:
@@ -288,133 +77,10 @@ class ModuleService:
         EVENTS.publish("module.updated", self.describe(module_id))
 
     def _detected(self, module_id: str) -> tuple[bool, bool, list[str]]:
-        if module_id == "speech":
-            model_ready = _model_complete(MOSS_MODEL_DIR, module_id) and _model_complete(MOSS_CODEC_DIR, module_id)
-            missing = []
-            if not _model_complete(MOSS_MODEL_DIR, module_id):
-                missing.append(str(MOSS_MODEL_DIR.relative_to(ROOT)))
-            if not _model_complete(MOSS_CODEC_DIR, module_id):
-                missing.append(str(MOSS_CODEC_DIR.relative_to(ROOT)))
-            return model_ready, True, missing
-        if module_id == "voice_design":
-            generator_ready = _model_complete(VOICE_GENERATOR_MODEL_DIR, module_id)
-            codec_ready = _model_complete(VOICE_GENERATOR_CODEC_DIR, module_id)
-            model_ready = generator_ready and codec_ready
-            runtime_ready = self._runtime_complete(VOICE_GENERATOR_RUNTIME_DIR, module_id)
-            missing = []
-            if not generator_ready:
-                missing.append(str(VOICE_GENERATOR_MODEL_DIR.relative_to(ROOT)))
-            if not codec_ready:
-                missing.append(str(VOICE_GENERATOR_CODEC_DIR.relative_to(ROOT)))
-            if not runtime_ready:
-                missing.append(str(VOICE_GENERATOR_RUNTIME_DIR.relative_to(ROOT)))
-            return model_ready, runtime_ready, missing
-        model_ready = _model_complete(SOUND_EFFECT_MODEL_DIR, module_id)
-        runtime_ready = self._runtime_complete(SOUND_EFFECT_RUNTIME_DIR, module_id)
-        missing = []
-        if not model_ready:
-            missing.append(str(SOUND_EFFECT_MODEL_DIR.relative_to(ROOT)))
-        if not runtime_ready:
-            missing.append(str(SOUND_EFFECT_RUNTIME_DIR.relative_to(ROOT)))
-        return model_ready, runtime_ready, missing
+        return detect_module(module_id, _append_module_log)
 
     def _runtime_complete(self, runtime: Path, module_id: str) -> bool:
-        python = _runtime_python(runtime)
-        marker = runtime / ".voicegrid-runtime.json"
-        requirements = ROOT / "desktop" / "workers" / f"requirements-{module_id}.txt"
-        if not python.is_file() or not requirements.is_file():
-            return False
-        try:
-            if marker.is_file():
-                state = json.loads(marker.read_text(encoding="utf-8"))
-                if state.get("requirements_sha256") != _requirements_sha256(requirements):
-                    return False
-                if module_id == "sound_effect" and state.get("source_revision") != SOUND_EFFECT_SOURCE_REVISION:
-                    return False
-            creationflags = subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
-            package_names = list(RUNTIME_VERSION_LOCKS[module_id])
-            version_script = (
-                "import importlib.metadata,json,sys;"
-                f"names={package_names!r};"
-                "print(json.dumps({'python':[sys.version_info.major,sys.version_info.minor],"
-                "'packages':{name:importlib.metadata.version(name) for name in names}}))"
-            )
-            result = subprocess.run(
-                [str(python), "-c", RUNTIME_IMPORT_CHECKS[module_id] + ";" + version_script],
-                cwd=ROOT,
-                capture_output=True,
-                text=True,
-                encoding="utf-8",
-                errors="replace",
-                timeout=20,
-                creationflags=creationflags,
-            )
-            if result.returncode != 0:
-                _append_module_log(
-                    module_id,
-                    "RUNTIME CHECK FAILED\n" + (result.stdout or "") + (result.stderr or ""),
-                )
-                return False
-            probe = json.loads(result.stdout.strip().splitlines()[-1])
-            versions = dict(probe.get("packages") or {})
-            python_lock = RUNTIME_PYTHON_LOCKS.get(module_id)
-            if python_lock and tuple(probe.get("python") or ()) != python_lock:
-                _append_module_log(module_id, f"PYTHON VERSION MISMATCH: expected={python_lock} actual={probe.get('python')}")
-                return False
-            mismatches = {
-                name: {"expected": version, "actual": versions.get(name)}
-                for name, version in RUNTIME_VERSION_LOCKS[module_id].items()
-                if versions.get(name) != version
-            }
-            if mismatches:
-                _append_module_log(module_id, f"PACKAGE VERSION MISMATCH: {json.dumps(mismatches, ensure_ascii=False)}")
-                return False
-            if module_id in {"voice_design", "sound_effect"}:
-                probe_script = "runtime_audio_probe.py" if module_id == "voice_design" else "sound_effect_runtime_probe.py"
-                audio_probe = subprocess.run(
-                    [str(python), str(ROOT / "desktop" / "workers" / probe_script)],
-                    cwd=ROOT,
-                    capture_output=True,
-                    text=True,
-                    encoding="utf-8",
-                    errors="replace",
-                    timeout=20,
-                    creationflags=creationflags,
-                )
-                if audio_probe.returncode != 0:
-                    _append_module_log(
-                        module_id,
-                        "AUDIO PROBE FAILED\n" + (audio_probe.stdout or "") + (audio_probe.stderr or ""),
-                    )
-                    return False
-                audio_result = json.loads(audio_probe.stdout.strip().splitlines()[-1])
-                expected_rate = 24_000 if module_id == "voice_design" else 48_000
-                if (
-                    audio_result.get("format") != "WAV"
-                    or audio_result.get("subtype") != "PCM_24"
-                    or int(audio_result.get("sample_rate", 0)) != expected_rate
-                    or int(audio_result.get("channels", 0)) != 1
-                ):
-                    _append_module_log(module_id, f"AUDIO PROBE MISMATCH: {json.dumps(audio_result, ensure_ascii=False)}")
-                    return False
-            if not marker.is_file():
-                marker.write_text(
-                    json.dumps(
-                        {
-                            "module": module_id,
-                            "requirements_sha256": _requirements_sha256(requirements),
-                            "adopted_at": datetime.now().isoformat(timespec="seconds"),
-                        },
-                        ensure_ascii=False,
-                        indent=2,
-                    ),
-                    encoding="utf-8",
-                    newline="\n",
-                )
-            return True
-        except Exception:
-            _append_module_log(module_id, "RUNTIME CHECK EXCEPTION\n" + traceback.format_exc())
-            return False
+        return runtime_complete(runtime, module_id, _append_module_log)
 
     def describe(self, module_id: str, inspect: bool = False) -> dict[str, Any]:
         if module_id not in MODULES:
@@ -479,26 +145,10 @@ class ModuleService:
         return self.describe(module_id)
 
     def _manual_paths(self, module_id: str) -> list[str]:
-        if module_id == "speech":
-            return [str(MOSS_MODEL_DIR.relative_to(ROOT)), str(MOSS_CODEC_DIR.relative_to(ROOT))]
-        if module_id == "voice_design":
-            return [
-                str(VOICE_GENERATOR_MODEL_DIR.relative_to(ROOT)),
-                str(VOICE_GENERATOR_CODEC_DIR.relative_to(ROOT)),
-                str(VOICE_GENERATOR_RUNTIME_DIR.relative_to(ROOT)),
-            ]
-        if module_id == "sound_effect":
-            return [str(SOUND_EFFECT_MODEL_DIR.relative_to(ROOT)), str(SOUND_EFFECT_RUNTIME_DIR.relative_to(ROOT))]
-        return []
+        return manual_paths(module_id)
 
     def _model_ids(self, module_id: str) -> list[str]:
-        if module_id == "speech":
-            return ["openmoss/MOSS-TTS-Local-Transformer-v1.5", "openmoss/MOSS-Audio-Tokenizer-v2"]
-        if module_id == "voice_design":
-            return ["openmoss/MOSS-VoiceGenerator", "openmoss/MOSS-Audio-Tokenizer"]
-        if module_id == "sound_effect":
-            return ["openmoss/MOSS-SoundEffect-v2.0"]
-        return []
+        return model_ids(module_id)
 
     def install(self, module_id: str, confirmed: bool) -> dict[str, Any]:
         if module_id not in MODULES:
@@ -596,7 +246,7 @@ class ModuleService:
         _append_module_log(module_id, "INSTALL BEGIN")
         try:
             self._assert_install_safe(module_id)
-            runtime = None if module_id == "speech" else VOICE_GENERATOR_RUNTIME_DIR if module_id == "voice_design" else SOUND_EFFECT_RUNTIME_DIR
+            runtime = runtime_dir(module_id)
             requirements = ROOT / "desktop" / "workers" / f"requirements-{module_id}.txt"
             if runtime is not None:
                 runtime.parent.mkdir(parents=True, exist_ok=True)
@@ -607,12 +257,12 @@ class ModuleService:
                     shutil.rmtree(staging_runtime)
                 self._run_step(
                     module_id,
-                    _python312_venv_command(staging_runtime),
+                    python312_venv_command(staging_runtime),
                     "runtime",
                     "正在创建 Python 3.12 独立运行环境",
                     0.06,
                 )
-                staging_python = str(_runtime_python(staging_runtime))
+                staging_python = str(runtime_python(staging_runtime))
                 self._run_step(
                     module_id,
                     [staging_python, "-m", "pip", "install", "--extra-index-url", "https://download.pytorch.org/whl/cu128", "-r", str(requirements)],
@@ -621,7 +271,7 @@ class ModuleService:
                     0.18,
                 )
                 if module_id == "sound_effect":
-                    source = _sound_effect_source_dir()
+                    source = sound_effect_source_dir()
                     if source is None:
                         self._run_step(
                             module_id,
@@ -639,7 +289,7 @@ class ModuleService:
                             0.34,
                             0.02,
                         )
-                        source = _sound_effect_source_dir()
+                        source = sound_effect_source_dir()
                     if source is None:
                         raise RuntimeError("官方 MOSS-SoundEffect v2 推理源码下载或校验失败。")
                     self._run_step(
@@ -653,7 +303,7 @@ class ModuleService:
                     json.dumps(
                         {
                             "module": module_id,
-                            "requirements_sha256": _requirements_sha256(requirements),
+                            "requirements_sha256": requirements_sha256(requirements),
                             "source_revision": SOUND_EFFECT_SOURCE_REVISION if module_id == "sound_effect" else None,
                             "completed_at": datetime.now().isoformat(timespec="seconds"),
                         },
@@ -677,14 +327,8 @@ class ModuleService:
                     raise
                 if previous_runtime.exists():
                     shutil.rmtree(previous_runtime)
-            python = sys.executable if runtime is None else str(_runtime_python(runtime))
-            if module_id == "speech":
-                jobs = [("openmoss/MOSS-TTS-Local-Transformer-v1.5", MOSS_MODEL_DIR), ("openmoss/MOSS-Audio-Tokenizer-v2", MOSS_CODEC_DIR)]
-            elif module_id == "voice_design":
-                jobs = [("openmoss/MOSS-VoiceGenerator", VOICE_GENERATOR_MODEL_DIR), ("openmoss/MOSS-Audio-Tokenizer", VOICE_GENERATOR_CODEC_DIR)]
-            else:
-                jobs = [("openmoss/MOSS-SoundEffect-v2.0", SOUND_EFFECT_MODEL_DIR)]
-            for index, (model_id, destination) in enumerate(jobs):
+            python = sys.executable if runtime is None else str(runtime_python(runtime))
+            for index, (model_id, destination) in enumerate(model_jobs(module_id)):
                 lock = MODEL_LOCKS[model_id]
                 if _model_complete(destination, module_id):
                     continue

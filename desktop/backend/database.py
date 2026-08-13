@@ -11,6 +11,7 @@ from typing import Iterator
 from .defaults import BUILT_IN_STYLES
 from .paths import APP_DB
 
+DATABASE_SCHEMA_VERSION = 1
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS projects (
@@ -114,31 +115,40 @@ class Database:
 
     def _migrate(self) -> bool:
         assert self.connection is not None
+        current = int(self.connection.execute("PRAGMA user_version").fetchone()[0])
+        if current > DATABASE_SCHEMA_VERSION:
+            raise sqlite3.DatabaseError(
+                f"数据库版本 {current} 高于当前程序支持的版本 {DATABASE_SCHEMA_VERSION}。"
+            )
+        changed = False
+        migrations = {1: self._migrate_to_v1}
+        while current < DATABASE_SCHEMA_VERSION:
+            target = current + 1
+            migrations[target]()
+            self.connection.execute(f"PRAGMA user_version={target}")
+            current = target
+            changed = True
+        return changed
+
+    def _migrate_to_v1(self) -> None:
+        assert self.connection is not None
         project_columns = {str(row["name"]) for row in self.connection.execute("PRAGMA table_info(projects)").fetchall()}
         task_columns = {str(row["name"]) for row in self.connection.execute("PRAGMA table_info(tasks)").fetchall()}
         output_columns = {str(row["name"]) for row in self.connection.execute("PRAGMA table_info(outputs)").fetchall()}
-        changed = False
         if "voice_id" not in project_columns:
             self.connection.execute("ALTER TABLE projects ADD COLUMN voice_id TEXT")
-            changed = True
         if "remove_after_stop" not in task_columns:
             self.connection.execute("ALTER TABLE tasks ADD COLUMN remove_after_stop INTEGER NOT NULL DEFAULT 0")
-            changed = True
         if "module" not in task_columns:
             self.connection.execute("ALTER TABLE tasks ADD COLUMN module TEXT NOT NULL DEFAULT 'speech'")
-            changed = True
         if "module" not in output_columns:
             self.connection.execute("ALTER TABLE outputs ADD COLUMN module TEXT NOT NULL DEFAULT 'speech'")
-            changed = True
         if "kind" not in output_columns:
             self.connection.execute("ALTER TABLE outputs ADD COLUMN kind TEXT NOT NULL DEFAULT 'speech_output'")
-            changed = True
         if self.connection.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='output_roots'").fetchone():
             self.connection.execute("DROP TABLE output_roots")
-            changed = True
         self.connection.execute("CREATE INDEX IF NOT EXISTS idx_tasks_project_module_created ON tasks(project_id, module, created_at DESC)")
         self.connection.execute("CREATE INDEX IF NOT EXISTS idx_outputs_project_module_created ON outputs(project_id, module, created_at DESC)")
-        return changed
 
     def _preserve_corrupt_database(self) -> None:
         stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
@@ -198,6 +208,7 @@ class Database:
             "created": self.created,
             "recovered": self.recovered,
             "schema_changed": self.schema_changed,
+            "schema_version": DATABASE_SCHEMA_VERSION,
             "error": self.last_error or None,
         }
 
