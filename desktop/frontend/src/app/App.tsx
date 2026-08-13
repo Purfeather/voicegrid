@@ -1,5 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
-import { Navigate, Route, Routes, useNavigate, useParams } from "react-router-dom";
+import { Navigate, Route, Routes, useLocation, useNavigate, useParams } from "react-router-dom";
 import { AlertTriangle, Clock3, FolderOpen, RefreshCw } from "lucide-react";
 import type {
   AppEvent,
@@ -77,6 +77,7 @@ function WorkspaceFallback({ runtime, metrics, theme, onTheme, onRelease }: {
 
 export function App() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [core, setCore] = useState<ResourceState<CoreBootstrap | null>>(() => initialResource(null));
   const [projects, setProjects] = useState<ResourceState<ProjectSummary[]>>(() => initialResource([]));
   const [voices, setVoices] = useState<ResourceState<VoiceAsset[]>>(() => initialResource([]));
@@ -90,6 +91,7 @@ export function App() {
   const [slowCritical, setSlowCritical] = useState(false);
   const [slowReset, setSlowReset] = useState(0);
   const readyReported = useRef(false);
+  const previousPath = useRef(location.pathname);
 
   const refreshProjects = useCallback(async () => {
     setProjects(loadingResource);
@@ -142,6 +144,11 @@ export function App() {
   }, []);
 
   useEffect(() => { applyTheme(theme); }, [theme]);
+  useEffect(() => {
+    const previous = previousPath.current;
+    previousPath.current = location.pathname;
+    if (location.pathname === "/projects" && previous !== "/projects") void refreshProjects();
+  }, [location.pathname, refreshProjects]);
   useEffect(() => { void reportStartupEvent("react_mounted", "React 应用已挂载"); }, []);
   useEffect(() => { void loadCritical(); }, [loadCritical]);
   useEffect(() => {
@@ -172,8 +179,9 @@ export function App() {
       setModules((current) => readyResource([descriptor, ...current.data.filter((item) => item.id !== descriptor.id)].sort((a, b) => ["speech", "voice_design", "sound_effect"].indexOf(a.id) - ["speech", "voice_design", "sound_effect"].indexOf(b.id))));
     }
     if (event.type === "voice.updated") void refreshVoicesAndStyles();
+    if (event.type === "project.saved" && location.pathname === "/projects") void refreshProjects();
     setLastEvent(event);
-  }), [refreshVoicesAndStyles]);
+  }), [location.pathname, refreshProjects, refreshVoicesAndStyles]);
   useEffect(() => {
     if (!toast) return;
     const timer = window.setTimeout(() => setToast(null), 3800);

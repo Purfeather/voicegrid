@@ -24,6 +24,7 @@ from .repository import (
     clear_finished_tasks,
     clear_outputs,
     close_project,
+    confirm_project_recovery,
     create_project,
     delete_project,
     delete_style,
@@ -208,6 +209,14 @@ def project_patch(project_id: str, request: ProjectPatch):
 def project_close(project_id: str):
     try:
         close_project(project_id)
+    except Exception as exc:
+        raise _translate_error(exc) from exc
+
+
+@app.post("/api/v2/projects/{project_id}/recovery/confirm")
+def project_recovery_confirm(project_id: str):
+    try:
+        return confirm_project_recovery(project_id)
     except Exception as exc:
         raise _translate_error(exc) from exc
 

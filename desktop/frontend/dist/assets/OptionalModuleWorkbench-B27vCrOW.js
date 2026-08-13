@@ -1,0 +1,1 @@
+import"./ModuleWorkbenchShell-DKlxWgIM.js";import{D as e}from"./index-CVi_Cdpf.js";var t=e(`square`,[[`rect`,{width:`18`,height:`18`,x:`3`,y:`3`,rx:`2`,key:`afitv7`}]]);export{t};

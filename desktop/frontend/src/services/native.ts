@@ -1,4 +1,5 @@
 import type { StartupStatus } from "../types";
+import { flushActiveProjectForExit } from "./exitCoordinator";
 
 type NativeBridge = {
   window_action?: (action: string) => Promise<string> | string;
@@ -10,6 +11,7 @@ type NativeBridge = {
   open_log_folder?: () => Promise<boolean> | boolean;
   frontend_ready?: () => Promise<StartupStatus> | StartupStatus;
   frontend_event?: (event: string, message: string) => Promise<boolean> | boolean;
+  exit_save_completed?: (success: boolean) => Promise<boolean> | boolean;
 };
 
 declare global {
@@ -17,6 +19,18 @@ declare global {
     pywebview?: { api?: NativeBridge };
   }
 }
+
+window.addEventListener("voicegrid:exit-requested", () => {
+  void (async () => {
+    let success = true;
+    try {
+      await flushActiveProjectForExit();
+    } catch {
+      success = false;
+    }
+    await window.pywebview?.api?.exit_save_completed?.(success);
+  })();
+});
 
 async function waitForBridge(timeoutMs = 3000): Promise<NativeBridge | null> {
   if (window.pywebview?.api) return window.pywebview.api;

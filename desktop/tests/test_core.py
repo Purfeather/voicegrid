@@ -126,12 +126,23 @@ class RepositoryTests(unittest.TestCase):
                         connection.execute("DELETE FROM projects WHERE id=?", (created["id"],))
                     repository.rebuild_project_index()
                     self.assertIsNotNone(database.one("SELECT id FROM projects WHERE id=?", (created["id"],)))
+                    saved_at = saved["updated_at"]
                     repository.mark_interrupted_projects()
                     summary = repository.list_projects()[0]
                     self.assertTrue(summary["recovery_available"])
+                    self.assertEqual(summary["status"], "已恢复最近自动保存")
                     reopened = repository.get_project(created["id"], begin_session=True)
-                    self.assertFalse(reopened["recovery_available"])
+                    self.assertTrue(reopened["recovery_available"])
+                    self.assertEqual(reopened["updated_at"], saved_at)
                     self.assertEqual(reopened["workspace"]["text"], "粘贴后立即保存的新文本")
+                    confirmed = repository.confirm_project_recovery(created["id"])
+                    self.assertFalse(confirmed["recovery_available"])
+                    self.assertEqual(confirmed["status"], "项目已保存")
+                    self.assertEqual(confirmed["updated_at"], saved_at)
+                    repository.close_project(created["id"])
+                    closed = repository.list_projects()[0]
+                    self.assertFalse(closed["recovery_available"])
+                    self.assertEqual(closed["updated_at"], saved_at)
             finally:
                 database.close()
 
@@ -153,6 +164,28 @@ class RepositoryTests(unittest.TestCase):
                     self.assertFalse(project_root.exists())
                     self.assertIsNone(database.one("SELECT id FROM projects WHERE id=?", (created["id"],)))
                     self.assertIsNone(database.one("SELECT id FROM tasks WHERE project_id=?", (created["id"],)))
+            finally:
+                database.close()
+
+    def test_twenty_clean_project_sessions_never_become_recoverable(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            database = Database(root / "app.db")
+            database.initialize()
+            try:
+                with patch.object(repository, "DB", database), patch.object(repository, "PROJECTS_DIR", root / "projects"):
+                    created = repository.create_project("正常退出验收", "Chinese")
+                    original_updated_at = created["updated_at"]
+                    repository.close_project(created["id"])
+                    for _ in range(20):
+                        opened = repository.get_project(created["id"], begin_session=True)
+                        self.assertFalse(opened["recovery_available"])
+                        repository.close_project(created["id"])
+                        repository.mark_interrupted_projects()
+                        summary = repository.list_projects()[0]
+                        self.assertFalse(summary["recovery_available"])
+                        self.assertEqual(summary["status"], "项目已保存")
+                        self.assertEqual(summary["updated_at"], original_updated_at)
             finally:
                 database.close()
 

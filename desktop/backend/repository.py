@@ -263,7 +263,7 @@ def list_projects() -> list[dict[str, Any]]:
         "recovery_available": bool(row["recovery_available"]),
         "output_count": int(row["output_count"]),
         "voice": row["voice"],
-        "status": "已保留上次编辑进度" if row["recovery_available"] else "已自动保存",
+        "status": "已恢复最近自动保存" if row["recovery_available"] else "项目已保存",
     } for row in rows]
 
 
@@ -275,11 +275,9 @@ def get_project(project_id: str, begin_session: bool = False) -> dict[str, Any]:
         payload = _read_project(path)
         if begin_session:
             payload["session_active"] = True
-            payload["recovery_available"] = False
-            payload["updated_at"] = now()
             _write_atomic(path, payload)
             with DB.transaction() as connection:
-                connection.execute("UPDATE projects SET session_active=1,recovery_available=0,updated_at=? WHERE id=?", (payload["updated_at"], project_id))
+                connection.execute("UPDATE projects SET session_active=1 WHERE id=?", (project_id,))
     return project_detail(payload)
 
 
@@ -291,7 +289,7 @@ def project_detail(payload: dict[str, Any]) -> dict[str, Any]:
         "workspace": speech_workspace,
         "output_count": int(count_row["count"] if count_row else 0),
         "voice": _project_voice_name(payload.get("workspaces", {}).get("speech", {})),
-        "status": "已保留上次编辑进度" if payload.get("recovery_available") else "已自动保存",
+        "status": "已恢复最近自动保存" if payload.get("recovery_available") else "项目已保存",
         "history": list_outputs(payload["id"], "speech"),
     }
 
@@ -333,10 +331,28 @@ def close_project(project_id: str) -> None:
         payload = _read_project(path)
         payload["session_active"] = False
         payload["recovery_available"] = False
-        payload["updated_at"] = now()
         _write_atomic(path, payload)
         with DB.transaction() as connection:
-            connection.execute("UPDATE projects SET session_active=0,recovery_available=0,updated_at=? WHERE id=?", (payload["updated_at"], project_id))
+            connection.execute("UPDATE projects SET session_active=0,recovery_available=0 WHERE id=?", (project_id,))
+
+
+def confirm_project_recovery(project_id: str) -> dict[str, Any]:
+    path = _project_file(project_id)
+    with _PROJECT_WRITE_LOCK:
+        payload = _read_project(path)
+        changed = bool(payload.get("recovery_available"))
+        if changed:
+            payload["recovery_available"] = False
+            _write_atomic(path, payload)
+        try:
+            with DB.transaction() as connection:
+                connection.execute("UPDATE projects SET recovery_available=0 WHERE id=?", (project_id,))
+        except Exception:
+            if changed:
+                payload["recovery_available"] = True
+                _write_atomic(path, payload)
+            raise
+    return project_detail(payload)
 
 
 def delete_project(project_id: str) -> None:
@@ -626,10 +642,12 @@ def add_output(project_id: str, task_id: str, metadata: dict[str, Any], module: 
         payload.setdefault("output_snapshots", {})[output_id] = {key: value for key, value in record.items() if key != "artifact_url"}
         payload["schema_version"] = max(4, int(payload.get("schema_version", 3)))
         payload["updated_at"] = now()
+        payload["recovery_available"] = False
         _write_atomic(path, payload)
     try:
         with DB.transaction() as connection:
             connection.execute("INSERT INTO outputs(id,project_id,module,kind,task_id,path,filename,created_at,metadata_json) VALUES(?,?,?,?,?,?,?,?,?)", (output_id, project_id, module, kind, task_id, str(output_path), metadata["filename"], metadata["created_at"], json.dumps(record, ensure_ascii=False)))
+            connection.execute("UPDATE projects SET updated_at=?,recovery_available=0 WHERE id=?", (payload["updated_at"], project_id))
     except Exception:
         if previous_payload is not None:
             with _PROJECT_WRITE_LOCK:

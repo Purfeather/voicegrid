@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import type { AppEvent, HardwareMetrics, ModuleDescriptor, ProjectDetail, RuntimeSnapshot, StylePreset, TaskRecord, ThemeId, VoiceAsset, WorkspaceDraft } from "../../types";
 import { api } from "../../services/api";
+import { registerExitSaveHandler } from "../../services/exitCoordinator";
 import { TitleBar } from "../../components/TitleBar";
 import { EmptyState } from "../../components/UI";
 import { VoicePanel } from "./VoicePanel";
@@ -42,6 +43,7 @@ export function Workbench(props: Props) {
   const revision = useRef(0);
   const editVersion = useRef(0);
   const saveQueue = useRef<Promise<void>>(Promise.resolve());
+  const exitInProgress = useRef(false);
 
   const refreshProject = useCallback(async (preserveWorkspace = false) => {
     const [detail, taskList] = await Promise.all([api.openProject(projectId), api.tasks(projectId, "speech")]);
@@ -52,7 +54,11 @@ export function Workbench(props: Props) {
     if (!preserveWorkspace || !dirty.current) {
       dirty.current = false;
       editVersion.current = 0;
-      setSaveState(detail.recovery_available ? "已恢复上次进度" : "已自动保存");
+      setSaveState(detail.recovery_available ? "已恢复最近自动保存" : "项目已保存");
+      if (detail.recovery_available) void api.confirmProjectRecovery(detail.id).then((confirmed) => {
+        setProject(confirmed);
+        setSaveState("项目已保存");
+      }).catch(() => undefined);
     }
   }, [projectId]);
 
@@ -64,7 +70,7 @@ export function Workbench(props: Props) {
       setProject((current) => current ? { ...current, revision: saved.revision, updated_at: saved.updated_at } : current);
       if (editVersion.current === version) {
         dirty.current = false;
-        setSaveState("已自动保存");
+        setSaveState("项目已保存");
       }
     });
     saveQueue.current = operation.catch(() => undefined);
@@ -96,7 +102,7 @@ export function Workbench(props: Props) {
     const version = editVersion.current;
     const snapshot = workspace;
     const timer = window.setTimeout(async () => {
-      if (!dirty.current || editVersion.current !== version) return;
+      if (exitInProgress.current || !dirty.current || editVersion.current !== version) return;
       try {
         await queueSave(snapshot, version);
       } catch (error) {
@@ -106,6 +112,14 @@ export function Workbench(props: Props) {
     }, 650);
     return () => window.clearTimeout(timer);
   }, [workspace, project, props.onMessage, queueSave]);
+
+  useEffect(() => registerExitSaveHandler(async () => {
+    if (!project) return;
+    exitInProgress.current = true;
+    await saveQueue.current;
+    if (workspace && dirty.current) await queueSave(workspace, editVersion.current);
+    await api.closeProject(project.id);
+  }), [project, queueSave, workspace]);
 
   function updateWorkspace(patch: Partial<WorkspaceDraft>) {
     dirty.current = true;

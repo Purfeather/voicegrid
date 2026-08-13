@@ -3,6 +3,7 @@ import { AudioLines, Download, FileAudio2, FolderOpen, Heart, Pencil, Play, Squa
 import { useNavigate, useParams } from "react-router-dom";
 import type { HardwareMetrics, ModuleDescriptor, OutputRecord, ProjectDetail, RuntimeSnapshot, SoundEffectDraft, TaskRecord, ThemeId } from "../../types";
 import { api } from "../../services/api";
+import { registerExitSaveHandler } from "../../services/exitCoordinator";
 import { TitleBar } from "../../components/TitleBar";
 import { Badge, Button, EmptyState, Field, IconButton, Progress, Section, TextArea, TextInput } from "../../components/UI";
 import { ModuleInstallPanel } from "../modules/ModuleInstallPanel";
@@ -45,6 +46,7 @@ export function SoundEffectWorkbench(props: Props) {
   const revision = useRef(0);
   const editVersion = useRef(0);
   const saveQueue = useRef<Promise<void>>(Promise.resolve());
+  const exitInProgress = useRef(false);
   const interactive = Boolean(module?.installed && module.engine_available);
 
   const refresh = useCallback(async (preserveDraft = false) => {
@@ -60,7 +62,11 @@ export function SoundEffectWorkbench(props: Props) {
     if (!preserveDraft || !dirty.current) {
       dirty.current = false;
       editVersion.current = 0;
-      setSaveState(detail.recovery_available ? "已保留上次编辑进度" : "已自动保存");
+      setSaveState(detail.recovery_available ? "已恢复最近自动保存" : "项目已保存");
+      if (detail.recovery_available) void api.confirmProjectRecovery(detail.id).then((confirmed) => {
+        setProject(confirmed);
+        setSaveState("项目已保存");
+      }).catch(() => undefined);
     }
   }, [projectId]);
 
@@ -81,7 +87,7 @@ export function SoundEffectWorkbench(props: Props) {
       setProject((current) => current ? { ...current, revision: saved.revision, updated_at: saved.updated_at } : current);
       if (editVersion.current === version) {
         dirty.current = false;
-        setSaveState("已自动保存");
+        setSaveState("项目已保存");
       }
     });
     saveQueue.current = operation.catch(() => undefined);
@@ -101,7 +107,7 @@ export function SoundEffectWorkbench(props: Props) {
     const version = editVersion.current;
     const snapshot = draft;
     const timer = window.setTimeout(async () => {
-      if (!dirty.current || editVersion.current !== version) return;
+      if (exitInProgress.current || !dirty.current || editVersion.current !== version) return;
       try { await queueSave(snapshot, version); }
       catch (error) {
         setSaveState("保存失败");
@@ -110,6 +116,14 @@ export function SoundEffectWorkbench(props: Props) {
     }, 650);
     return () => window.clearTimeout(timer);
   }, [draft, interactive, project, props.onMessage, queueSave]);
+
+  useEffect(() => registerExitSaveHandler(async () => {
+    if (!project) return;
+    exitInProgress.current = true;
+    await saveQueue.current;
+    if (draft && dirty.current && interactive) await queueSave(draft, editVersion.current);
+    await api.closeProject(project.id);
+  }), [draft, interactive, project, queueSave]);
 
   function update(patch: Partial<SoundEffectDraft>) {
     if (!interactive) return;

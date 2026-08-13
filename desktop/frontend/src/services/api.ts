@@ -56,6 +56,7 @@ export const api = {
     body: JSON.stringify({ revision, module, workspace }),
   }),
   closeProject: (id: string) => request<void>(`/projects/${id}/close`, { method: "POST", keepalive: true }),
+  confirmProjectRecovery: (id: string) => request<ProjectDetail>(`/projects/${id}/recovery/confirm`, { method: "POST" }),
   deleteProject: (id: string) => request<void>(`/projects/${id}`, { method: "DELETE" }),
   uploadVoice: async (file: File) => {
     const body = new FormData();

@@ -417,6 +417,9 @@ class NativeHost:
         self.shutdown_lock = threading.Lock()
         self.exiting = False
         self.shutdown_started = False
+        self.exit_handshake_started = False
+        self.exit_save_completed_event = threading.Event()
+        self.exit_save_succeeded = False
         self.maximized = False
         self.restore_window_rect: tuple[int, int, int, int] | None = None
         self.main_ready = False
@@ -572,9 +575,39 @@ class NativeHost:
                 self.maximized = True
                 return "maximized"
             if action == "exit":
-                threading.Thread(target=self.shutdown, name="app-shutdown", daemon=True).start()
+                if not self.exit_handshake_started:
+                    self.exit_handshake_started = True
+                    threading.Thread(target=self._graceful_exit, name="app-graceful-exit", daemon=True).start()
                 return "exiting"
         raise ValueError("不支持的窗口操作。")
+
+    def _graceful_exit(self) -> None:
+        if not self.main_ready or self.window is None:
+            self.shutdown()
+            return
+        self.exit_save_completed_event.clear()
+        self.exit_save_succeeded = False
+        try:
+            self.window.evaluate_js("window.dispatchEvent(new Event('voicegrid:exit-requested'))")
+        except Exception as exc:
+            startup_log(f"退出保存握手无法发送，将保留项目恢复状态：{exc}")
+            self.shutdown()
+            return
+        completed = self.exit_save_completed_event.wait(timeout=2.0)
+        if TRACE is not None:
+            TRACE.record(
+                "exit_save_handshake",
+                self.phase,
+                "退出前保存完成" if completed and self.exit_save_succeeded else "退出前保存未完成，保留恢复状态",
+                completed=completed,
+                success=self.exit_save_succeeded,
+            )
+        self.shutdown()
+
+    def exit_save_completed(self, success: bool) -> bool:
+        self.exit_save_succeeded = bool(success)
+        self.exit_save_completed_event.set()
+        return True
 
     def _maximize_to_work_area(self) -> None:
         if os.name != "nt":
@@ -974,6 +1007,9 @@ class NativeApi:
 
     def frontend_event(self, event: str, message: str) -> bool:
         return self._host.frontend_event(event, message)
+
+    def exit_save_completed(self, success: bool) -> bool:
+        return self._host.exit_save_completed(success)
 
     def select_folder(self, initial: str = "") -> str | None:
         start = Path(initial).expanduser() if initial else ROOT

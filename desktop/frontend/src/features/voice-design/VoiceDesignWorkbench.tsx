@@ -3,6 +3,7 @@ import { AudioLines, Download, FileAudio2, FolderOpen, Save, Square, Trash2, Wan
 import { useNavigate, useParams } from "react-router-dom";
 import type { AppEvent, HardwareMetrics, ModuleDescriptor, OutputRecord, ProjectDetail, RuntimeSnapshot, TaskRecord, ThemeId, VoiceAsset, VoiceDesignDraft, VoicePromptComposer } from "../../types";
 import { api } from "../../services/api";
+import { registerExitSaveHandler } from "../../services/exitCoordinator";
 import { TitleBar } from "../../components/TitleBar";
 import { Badge, Button, EmptyState, Field, IconButton, Modal, Progress, Section, Select, TextArea, TextInput } from "../../components/UI";
 import { ModuleTabs } from "../modules/ModuleTabs";
@@ -71,6 +72,7 @@ export function VoiceDesignWorkbench(props: Props) {
   const revision = useRef(0);
   const editVersion = useRef(0);
   const saveQueue = useRef<Promise<void>>(Promise.resolve());
+  const exitInProgress = useRef(false);
 
   const refresh = useCallback(async (preserveDraft = false) => {
     const [detail, taskList, outputs] = await Promise.all([
@@ -87,7 +89,11 @@ export function VoiceDesignWorkbench(props: Props) {
     if (!preserveDraft || !dirty.current) {
       dirty.current = false;
       editVersion.current = 0;
-      setSaveState(detail.recovery_available ? "已保留上次编辑进度" : "已自动保存");
+      setSaveState(detail.recovery_available ? "已恢复最近自动保存" : "项目已保存");
+      if (detail.recovery_available) void api.confirmProjectRecovery(detail.id).then((confirmed) => {
+        setProject(confirmed);
+        setSaveState("项目已保存");
+      }).catch(() => undefined);
     }
   }, [projectId]);
 
@@ -99,7 +105,7 @@ export function VoiceDesignWorkbench(props: Props) {
       setProject((current) => current ? { ...current, revision: saved.revision, updated_at: saved.updated_at } : current);
       if (editVersion.current === version) {
         dirty.current = false;
-        setSaveState("已自动保存");
+        setSaveState("项目已保存");
       }
     });
     saveQueue.current = operation.catch(() => undefined);
@@ -128,7 +134,7 @@ export function VoiceDesignWorkbench(props: Props) {
     const version = editVersion.current;
     const snapshot = draft;
     const timer = window.setTimeout(async () => {
-      if (!dirty.current || editVersion.current !== version) return;
+      if (exitInProgress.current || !dirty.current || editVersion.current !== version) return;
       try {
         await queueSave(snapshot, version);
       } catch (error) {
@@ -138,6 +144,14 @@ export function VoiceDesignWorkbench(props: Props) {
     }, 650);
     return () => window.clearTimeout(timer);
   }, [draft, module?.installed, project, props.onMessage, queueSave]);
+
+  useEffect(() => registerExitSaveHandler(async () => {
+    if (!project) return;
+    exitInProgress.current = true;
+    await saveQueue.current;
+    if (draft && dirty.current && module?.installed) await queueSave(draft, editVersion.current);
+    await api.closeProject(project.id);
+  }), [draft, module?.installed, project, queueSave]);
 
   function update(patch: Partial<VoiceDesignDraft>) {
     if (!module?.installed) return;

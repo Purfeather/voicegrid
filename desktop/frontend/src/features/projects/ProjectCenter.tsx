@@ -117,7 +117,7 @@ export function ProjectCenter({ projects, modules, modulesLoading, modulesError,
                 onKeyDown={(event) => { if ((event.key === "Enter" || event.key === " ") && deletingId !== project.id) void onOpen(project.id); }}
               >
                 <div className={styles.projectAccent} />
-                <header><span className={project.recovery_available ? styles.recoveryBadge : ""}><Badge tone={project.recovery_available ? "accent" : "success"}>{project.status}</Badge></span><span>{project.output_count} 条输出</span></header>
+                <header><span className={project.recovery_available ? styles.recoveryBadge : ""}><Badge tone={project.recovery_available ? "accent" : "success"}>{project.recovery_available ? "已恢复最近自动保存" : "项目已保存"}</Badge></span><span>{project.output_count} 条输出</span></header>
                 <div className={styles.projectBody}><h3>{project.name}</h3><p>当前音色：{project.voice}</p></div>
                 <footer>
                   <span><Clock3 size={13} />{new Date(project.updated_at).toLocaleString("zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })}</span>
