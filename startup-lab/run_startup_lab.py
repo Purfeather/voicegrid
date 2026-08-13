@@ -7,6 +7,7 @@ import json
 import os
 import socket
 import subprocess
+import sys
 import tempfile
 import time
 import urllib.error
@@ -17,6 +18,8 @@ from typing import Any
 
 
 ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 PYTHONW = ROOT / ".venv" / "Scripts" / "pythonw.exe"
 RESULTS_DIR = Path(__file__).resolve().parent / "results"
 LAB_PROFILE = Path(__file__).resolve().parent / "cache" / "webview2"
@@ -38,7 +41,10 @@ def request_json(port: int, path: str, method: str = "GET", timeout: float = .25
 
 
 def create_projects(root: Path, count: int, recovery: bool = False) -> None:
-    projects = root / "projects"
+    from desktop.backend.defaults import default_workspace
+    from desktop.backend.schemas import ProjectWorkspaces
+
+    projects = root / "data" / "projects"
     projects.mkdir(parents=True, exist_ok=True)
     timestamp = datetime.now().isoformat(timespec="seconds")
     for index in range(count):
@@ -46,7 +52,7 @@ def create_projects(root: Path, count: int, recovery: bool = False) -> None:
         project_root = projects / project_id
         project_root.mkdir(parents=True, exist_ok=True)
         payload = {
-            "schema_version": 2,
+            "schema_version": 4,
             "id": project_id,
             "name": f"Startup Lab Project {index + 1:03d}",
             "created_at": timestamp,
@@ -54,7 +60,8 @@ def create_projects(root: Path, count: int, recovery: bool = False) -> None:
             "revision": 1,
             "session_active": bool(recovery and index == 0),
             "recovery_available": False,
-            "workspace": {"voice_id": None, "reference_id": None},
+            "workspaces": ProjectWorkspaces(speech=default_workspace("Chinese")).model_dump(mode="json"),
+            "output_snapshots": {},
         }
         (project_root / "project.json").write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8", newline="\n")
 

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import importlib.util
 import tempfile
 import time
 import unittest
@@ -12,6 +13,23 @@ from desktop.backend.database import DATABASE_SCHEMA_VERSION, Database
 
 
 class StartupDataTests(unittest.TestCase):
+    def test_startup_lab_uses_current_schema_and_data_directory(self) -> None:
+        script = Path(__file__).resolve().parents[2] / "startup-lab" / "run_startup_lab.py"
+        spec = importlib.util.spec_from_file_location("voicegrid_startup_lab", script)
+        self.assertIsNotNone(spec)
+        module = importlib.util.module_from_spec(spec)
+        assert spec and spec.loader
+        spec.loader.exec_module(module)
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            module.create_projects(root, 2)
+            files = sorted((root / "data" / "projects").glob("*/project.json"))
+            self.assertEqual(len(files), 2)
+            payload = json.loads(files[0].read_text(encoding="utf-8"))
+            self.assertEqual(payload["schema_version"], 4)
+            self.assertIn("speech", payload["workspaces"])
+            self.assertFalse((root / "projects").exists())
+
     def test_new_database_uses_current_schema_version(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             database = Database(Path(temporary) / "app.db")
