@@ -12,9 +12,7 @@ from typing import Any
 
 import uvicorn
 
-from desktop.backend.desktop_control import DESKTOP
 from desktop.backend.paths import ASSETS_DIR, LOGS_DIR, ROOT
-from desktop.backend.server import app
 
 
 HOST = "127.0.0.1"
@@ -59,6 +57,8 @@ class NativeHost:
         self.lock = threading.RLock()
 
     def start_server(self) -> None:
+        from desktop.backend.server import app
+
         config = uvicorn.Config(app, host=HOST, port=PORT, log_level="warning", access_log=False)
         self.server = uvicorn.Server(config)
         self.server_thread = threading.Thread(target=self.server.run, name="local-api", daemon=True)
@@ -119,6 +119,8 @@ class NativeHost:
         threading.Thread(target=self.tray.run, name="system-tray", daemon=True).start()
 
     def shutdown(self) -> None:
+        from desktop.backend.desktop_control import DESKTOP
+
         with self.lock:
             if self.exiting:
                 return
@@ -139,6 +141,7 @@ class NativeHost:
 
     def run(self) -> None:
         import webview
+        from desktop.backend.desktop_control import DESKTOP
 
         self.start_server()
         DESKTOP.register(self.command)
