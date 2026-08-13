@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { AudioLines, Download, FileAudio2, FolderOpen, Heart, Pencil, Play, Square, Trash2 } from "lucide-react";
+import { AudioLines, Download, FileAudio2, FolderOpen, Heart, Square, Trash2 } from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
 import type { HardwareMetrics, ModuleDescriptor, OutputRecord, ProjectDetail, RuntimeSnapshot, SoundEffectDraft, TaskRecord, ThemeId } from "../../types";
 import { api } from "../../services/api";
@@ -10,6 +10,7 @@ import { ModuleInstallPanel } from "../modules/ModuleInstallPanel";
 import { ModuleTabs } from "../modules/ModuleTabs";
 import { OptionalModuleColumn, OptionalModuleWorkbench } from "../modules/OptionalModuleWorkbench";
 import { AssetLibrary, ModuleActivityActions, ModuleActivityTimeline, ModuleCurrentOutput, ModuleGenerateButton, ModuleGenerateCard, ModuleParameterRail } from "../modules/ModuleWorkbenchShell";
+import { SoundEffectAssetRows } from "./SoundEffectAssetRows";
 import styles from "./soundEffect.module.css";
 
 interface Props {
@@ -175,7 +176,6 @@ export function SoundEffectWorkbench(props: Props) {
   }
 
   async function deleteAsset(output: OutputRecord) {
-    if (!window.confirm(`删除音效“${output.filename}”及其音频文件吗？`)) return;
     try { await api.deleteSoundEffect(output.id, true); await refreshActivity(); props.onMessage("音效已删除。", "success"); }
     catch (error) { props.onMessage(error instanceof Error ? error.message : "音效删除失败", "error"); }
   }
@@ -199,18 +199,7 @@ export function SoundEffectWorkbench(props: Props) {
       <OptionalModuleColumn label="音效模块状态">
         {module && <ModuleInstallPanel module={module} onDetect={async () => { await api.detectModule("sound_effect"); await props.onModulesChanged(); }} onInstall={async (repair) => { await api.installModule("sound_effect", repair); await props.onModulesChanged(); props.onMessage("音效模型安装已在后台开始。", "success"); }} />}
         <AssetLibrary title="项目音效素材库" eyebrow="Project SFX library" count={<Badge tone={history.length ? "accent" : "neutral"}>{history.length} 个</Badge>}>
-          {interactive ? <div className={styles.assetRows}>
-            {history.map((output) => <article key={output.id} className={`${styles.assetRow} ${selected?.id === output.id ? styles.assetRowActive : ""}`}>
-              <button className={styles.assetSelect} onClick={() => setSelected(output)}><span className={styles.assetIcon}><AudioLines size={15} /></span><span><strong>{output.filename}</strong><small>{output.duration.toFixed(1)} 秒 · {output.sample_rate / 1000} kHz</small></span></button>
-              <div className={styles.assetActions}>
-                <IconButton label={`试听 ${output.filename}`} onClick={() => { setSelected(output); void new Audio(output.artifact_url).play(); }}><Play size={13} /></IconButton>
-                <IconButton label={output.favorite ? "取消收藏" : "收藏"} onClick={() => toggleFavorite(output)}><Heart size={13} fill={output.favorite ? "currentColor" : "none"} /></IconButton>
-                <IconButton label="重命名音效" onClick={() => renameAsset(output)}><Pencil size={13} /></IconButton>
-                <IconButton label="删除音效" onClick={() => deleteAsset(output)}><Trash2 size={13} /></IconButton>
-              </div>
-            </article>)}
-            {!history.length && <EmptyState title="项目素材库为空" detail="生成完成的音效会自动保存在这里。" />}
-          </div> : <><div className={styles.assetList}>{["雨夜远处车辆驶过", "金属门缓慢开启", "林间风吹树叶"].map((name, index) => <article key={name}><span><AudioLines size={15} /></span><div><strong>{name}</strong><small>示例内容 · {8 + index * 3} 秒</small></div><Heart size={14} /><em>WAV</em></article>)}</div><EmptyState title="安装后建立项目素材库" detail="真实结果将自动进入当前项目，支持试听、收藏、重命名、下载和删除。" /></>}
+          {interactive ? <SoundEffectAssetRows outputs={history} selectedId={selected?.id} onSelect={setSelected} onFavorite={toggleFavorite} onRename={renameAsset} onDelete={deleteAsset} onMessage={props.onMessage} /> : <><div className={styles.assetList}>{["雨夜远处车辆驶过", "金属门缓慢开启", "林间风吹树叶"].map((name, index) => <article key={name}><span><AudioLines size={15} /></span><div><strong>{name}</strong><small>示例内容 · {8 + index * 3} 秒</small></div><Heart size={14} /><em>WAV</em></article>)}</div><EmptyState title="安装后建立项目素材库" detail="真实结果将自动进入当前项目，支持试听、收藏、重命名、下载和删除。" /></>}
         </AssetLibrary>
       </OptionalModuleColumn>
 

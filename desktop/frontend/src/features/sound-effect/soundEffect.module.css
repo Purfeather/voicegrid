@@ -49,6 +49,7 @@
 .assetIcon { width: 30px; height: 30px; flex: none; display: grid; place-items: center; border-radius: var(--radius-sm); background: var(--surface-raised); color: var(--accent); }
 .assetActions { display: flex; }
 .assetActions button { width: 28px; height: 28px; }
+.assetActions .assetPreviewActive { border-color: color-mix(in srgb, var(--accent) 38%, transparent); background: var(--accent-soft); color: var(--accent); }
 .currentOutput { display: grid; gap: 8px; padding: 12px; }
 .currentOutput > div:first-child { min-width: 0; display: flex; align-items: center; gap: 8px; }
 .currentOutput > div:first-child > div { min-width: 0; display: grid; }

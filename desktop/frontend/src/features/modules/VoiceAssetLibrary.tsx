@@ -1,6 +1,7 @@
-import { Check, Pencil, Play, Trash2, Waves } from "lucide-react";
+import { Check, Pencil, Play, Square, Trash2, Waves } from "lucide-react";
 import type { VoiceAsset } from "../../types";
 import { api } from "../../services/api";
+import { useAssetPreview } from "../../hooks/useAssetPreview";
 import { Badge, EmptyState, IconButton } from "../../components/UI";
 import { AssetLibrary } from "./ModuleWorkbenchShell";
 import styles from "./moduleWorkbenchShell.module.css";
@@ -15,6 +16,10 @@ export function VoiceAssetLibrary({ voices, selectedId, onSelect, onChanged, onM
   locked?: boolean;
 }) {
   const saved = voices.filter((voice) => voice.saved);
+  const preview = useAssetPreview({
+    assetIds: saved.map((voice) => voice.id),
+    onError: (message) => onMessage(message, "error"),
+  });
   async function rename(voice: VoiceAsset) {
     const name = window.prompt("输入新的音色名称", voice.name)?.trim();
     if (!name || name === voice.name) return;
@@ -23,6 +28,7 @@ export function VoiceAssetLibrary({ voices, selectedId, onSelect, onChanged, onM
   }
   async function remove(voice: VoiceAsset) {
     if (!window.confirm(`确定删除音色“${voice.name}”及其本地音频文件吗？`)) return;
+    preview.stop(voice.id);
     try { await api.deleteVoice(voice.id, true); onRemoved?.(voice); await onChanged(); onMessage("音色已删除。", "success"); }
     catch (error) { onMessage(error instanceof Error ? error.message : "删除失败", "error"); }
   }
@@ -34,7 +40,7 @@ export function VoiceAssetLibrary({ voices, selectedId, onSelect, onChanged, onM
           <span><strong>{voice.name}</strong><small>{voice.health.suitability} · {voice.health.duration.toFixed(1)} 秒</small></span>
         </button>
         <div className={styles.assetActions}>
-          <IconButton label={`试听 ${voice.name}`} onClick={() => new Audio(voice.artifact_url).play()}><Play size={14} /></IconButton>
+          <IconButton className={preview.playingId === voice.id ? styles.assetPreviewActive : ""} label={`${preview.playingId === voice.id ? "停止试听" : "试听"} ${voice.name}`} aria-pressed={preview.playingId === voice.id} onClick={() => void preview.toggle(voice.id, voice.artifact_url)}>{preview.playingId === voice.id ? <Square size={13} fill="currentColor" /> : <Play size={14} />}</IconButton>
           <IconButton label={`重命名 ${voice.name}`} onClick={() => rename(voice)}><Pencil size={14} /></IconButton>
           <IconButton label={`删除 ${voice.name}`} onClick={() => remove(voice)}><Trash2 size={14} /></IconButton>
         </div>

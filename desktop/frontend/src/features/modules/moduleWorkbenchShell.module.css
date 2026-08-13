@@ -30,6 +30,7 @@
 .assetIcon { width: 30px; height: 30px; flex: none; display: grid; place-items: center; border-radius: var(--radius-sm); background: var(--surface-raised); color: var(--accent); }
 .assetActions { display: flex; }
 .assetActions button { width: 30px; height: 30px; }
+.assetActions .assetPreviewActive { border-color: color-mix(in srgb, var(--accent) 38%, transparent); background: var(--accent-soft); color: var(--accent); }
 .activityActions { display: flex; gap: 2px; }
 @media (max-width: 1180px) { .columns { grid-template-columns: minmax(240px, 275px) minmax(360px, 1fr) minmax(280px, 310px); } }
 @media (max-width: 1080px) { .columns { grid-template-columns: minmax(210px, 235px) minmax(350px, 1fr) minmax(270px, 290px); gap: 6px; padding: 6px; } }
