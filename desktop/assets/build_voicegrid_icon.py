@@ -31,10 +31,6 @@ def _draw_mark(size: int, color: tuple[int, int, int, int], width_scale: float =
     return image
 
 
-def render_white(size: int) -> Image.Image:
-    return _draw_mark(size, (255, 255, 255, 255))
-
-
 def render_accent(size: int) -> Image.Image:
     return _draw_mark(size, SYSTEM_ACCENT)
 
@@ -58,5 +54,4 @@ def render_system(size: int) -> Image.Image:
 if __name__ == "__main__":
     frames = [render_system(size) for size in SIZES]
     frames[-1].save(ROOT / "voicegrid.ico", format="ICO", append_images=frames[:-1], sizes=[(size, size) for size in SIZES])
-    render_white(256).save(ROOT / "voicegrid-icon-white.png", format="PNG")
     render_accent(256).save(ROOT / "voicegrid-icon-accent.png", format="PNG")

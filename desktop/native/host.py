@@ -30,7 +30,7 @@ ICON_PATH = ASSETS_DIR / "voicegrid.ico"
 HOST = "127.0.0.1"
 PORT = int(os.environ.get("MOSS_TTS_PORT", "7862"))
 APP_URL = f"http://{HOST}:{PORT}/projects"
-MUTEX_NAME = os.environ.get("MOSS_TTS_MUTEX_NAME", r"Local\LongRongAIStudioV2")
+MUTEX_NAME = os.environ.get("MOSS_TTS_MUTEX_NAME", r"Local\VoiceGridDesktop")
 WINDOW_TITLE = os.environ.get("MOSS_TTS_WINDOW_TITLE", BUILD_INFO.window_title)
 
 
@@ -730,7 +730,7 @@ class NativeHost:
                 pystray.Menu.SEPARATOR,
                 pystray.MenuItem("退出", lambda *_: self.command("exit")),
             )
-            self.tray = pystray.Icon("voicegrid-v2", image, BUILD_INFO.product, menu)
+            self.tray = pystray.Icon("voicegrid", image, BUILD_INFO.product, menu)
             if TRACE is not None:
                 TRACE.record("tray_created", "ready", "系统托盘已创建")
             self.tray.run()

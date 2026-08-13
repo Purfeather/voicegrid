@@ -34,4 +34,4 @@ export const PARAMETER_HELP: Record<keyof SynthesisParameters, string> = {
   seed: "随机种子；相同输入与参数更容易复现相近结果。",
 };
 
-export const SAMPLE_TEXT = "你好，欢迎使用龙融影业声格 VoiceGrid。\n这里是以 MOSS-TTS 1.5 4B 为核心的本地配音工作站。你可以管理音色、设计情绪、预览切分并生成可直接交付的音频。";
+export const SAMPLE_TEXT = "你好，欢迎使用声格 VoiceGrid。\n这里是以 MOSS-TTS 1.5 4B 为核心的本地配音工作站。你可以管理音色、设计情绪、预览切分并生成可直接交付的音频。";

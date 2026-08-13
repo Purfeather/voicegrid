@@ -178,7 +178,7 @@ def run_case(
         port = free_port()
         trace_path = logs_dir / "trace.jsonl"
         profile_path = profile or runtime_root / "webview-profile"
-        window_title = f"LongRong Startup Lab {port}"
+        window_title = f"VoiceGrid Startup Lab {port}"
         env = os.environ.copy()
         env.update({
             "MOSS_TTS_RUNTIME_ROOT": str(runtime_root),
@@ -190,7 +190,7 @@ def run_case(
             "MOSS_TTS_WEBVIEW_PROFILE": str(profile_path),
             "MOSS_TTS_TRACE_PATH": str(trace_path),
             "MOSS_TTS_PORT": str(port),
-            "MOSS_TTS_MUTEX_NAME": rf"Local\LongRongStartupLab{port}",
+            "MOSS_TTS_MUTEX_NAME": rf"Local\VoiceGridStartupLab{port}",
             "MOSS_TTS_WINDOW_TITLE": window_title,
             "MOSS_TTS_STARTUP_WATCHDOG": "1",
         })
@@ -359,7 +359,7 @@ def run_acceptance() -> list[dict[str, Any]]:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="LongRong AI Studio startup responsiveness lab")
+    parser = argparse.ArgumentParser(description="VoiceGrid startup responsiveness lab")
     parser.add_argument("--suite", choices=("single", "quick", "faults", "acceptance"), default="quick")
     parser.add_argument("--projects", type=int, default=1)
     parser.add_argument("--reuse-profile", action="store_true")

@@ -4,7 +4,7 @@ from copy import deepcopy
 from typing import Any
 
 
-WELCOME_TEXT = """你好，欢迎使用龙融影业声格 VoiceGrid。
+WELCOME_TEXT = """你好，欢迎使用声格 VoiceGrid。
 这里是以 MOSS-TTS 1.5 4B 为核心的本地配音工作站。你可以管理音色、设计情绪、预览切分并生成可直接交付的音频。"""
 
 LANGUAGES = [

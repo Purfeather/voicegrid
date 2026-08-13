@@ -116,7 +116,7 @@ class NativeHost:
             pystray.Menu.SEPARATOR,
             pystray.MenuItem("退出", lambda *_: self.command("exit")),
         )
-        self.tray = pystray.Icon("voicegrid-v2-legacy", image, "声格 VoiceGrid · 龙融影业", menu)
+        self.tray = pystray.Icon("voicegrid-legacy", image, BUILD_INFO.product, menu)
         threading.Thread(target=self.tray.run, name="system-tray", daemon=True).start()
 
     def shutdown(self) -> None:

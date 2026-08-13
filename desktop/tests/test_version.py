@@ -47,8 +47,6 @@ class VersionConsistencyTests(unittest.TestCase):
         ):
             source = (ROOT / relative).read_text(encoding="utf-8")
             self.assertIn(expected_asset, source, relative)
-            self.assertNotIn("voicegrid-icon-white", source, relative)
-
         self.assertTrue((ROOT / "desktop" / "assets" / "voicegrid-icon-accent.svg").is_file())
         self.assertTrue((ROOT / "desktop" / "assets" / "voicegrid-icon-accent.png").is_file())
 

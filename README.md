@@ -1,12 +1,12 @@
 # 声格 VoiceGrid 2.0（开发测试版）
 
-声格 VoiceGrid 是龙融影业的本地桌面音频工作站，作者为 Wang Xiaohan。界面使用 React + TypeScript，后端使用 FastAPI + SQLite，桌面窗口由 PyWebView2 承载。当前多模块开发版本为 `2.0.0-dev`；上一个可回退冻结点为 `v1.0.0-beta.1`。
+声格 VoiceGrid 是一套本地桌面音频工作站。界面使用 React + TypeScript，后端使用 FastAPI + SQLite，桌面窗口由 PyWebView2 承载。当前多模块开发版本为 `2.0.0-dev`；上一个可回退冻结点为 `v1.0.0-beta.1`。
 
 运行期可写内容统一保存在 `data` 目录；根目录的 `optional-models` 与 `runtimes` 只保存可选模型和隔离运行环境，`models` 继续作为只读模型连接。
 
 ## 启动
 
-双击根目录的 `声格 VoiceGrid.exe`。程序会先显示可响应的龙融影业品牌启动页，再进入项目中心；正常启动不会预加载模型或占用额外显存。桌面快捷方式应指向根目录中的 EXE，不要单独复制 EXE。`启动测试版.bat` 继续保留为兼容和排障入口。关闭主窗口只会隐藏到系统托盘；再次双击启动器会唤醒现有窗口。只有右键托盘图标并选择“退出”才会结束后台服务和模型进程。
+双击根目录的 `声格 VoiceGrid.exe`。程序会先显示可响应的产品启动页，再进入项目中心；正常启动不会预加载模型或占用额外显存。桌面快捷方式应指向根目录中的 EXE，不要单独复制 EXE。`启动测试版.bat` 继续保留为兼容和排障入口。关闭主窗口只会隐藏到系统托盘；再次双击启动器会唤醒现有窗口。只有右键托盘图标并选择“退出”才会结束后台服务和模型进程。
 
 若准备时间超过 5 秒，启动页会显示真实阶段及“继续等待、重试、打开日志、退出”。内部回滚入口为 `internal-rollback-legacy.bat`，仅用于开发排障。
 
@@ -46,4 +46,4 @@
 - 启动快速回归：运行 `.venv\Scripts\python.exe startup-lab\run_startup_lab.py --suite quick`
 - 启动完整验收：运行 `.venv\Scripts\python.exe startup-lab\run_startup_lab.py --suite acceptance`
 
-正式 1.0 目录和 `models` 连接目标只读，禁止在其中新增、修改或删除开发文件。详细架构见 `ARCHITECTURE.md`，界面规范见 `design-system/longrong-ai-voice-studio/MASTER.md`。
+正式 1.0 目录和 `models` 连接目标只读，禁止在其中新增、修改或删除开发文件。详细架构见 `ARCHITECTURE.md`，界面规范见 `design-system/voicegrid/MASTER.md`。
