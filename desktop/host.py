@@ -23,7 +23,7 @@ import webview
 ROOT = Path(__file__).resolve().parents[1]
 DESKTOP_DIR = ROOT / "desktop"
 ASSETS_DIR = DESKTOP_DIR / "assets"
-LOGS_DIR = Path(os.environ.get("MOSS_TTS_LOGS_DIR", ROOT / "logs")).resolve()
+LOGS_DIR = Path(os.environ.get("MOSS_TTS_LOGS_DIR", ROOT / "data" / "logs")).resolve()
 WEBVIEW_PROFILE = Path(os.environ.get("MOSS_TTS_WEBVIEW_PROFILE", ROOT / "data" / "cache" / "webview2")).resolve()
 SPLASH_PATH = DESKTOP_DIR / "splash.html"
 ICON_PATH = ASSETS_DIR / "voicegrid.ico"

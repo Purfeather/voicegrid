@@ -329,6 +329,14 @@ class AudioOutputTests(unittest.TestCase):
 
 
 class ModelContractTests(unittest.TestCase):
+    def test_runtime_data_defaults_are_consolidated_under_data(self) -> None:
+        from desktop.backend.paths import DATA_DIR, LOGS_DIR, OUTPUTS_DIR, PROJECTS_DIR, REFERENCES_DIR
+
+        self.assertEqual(PROJECTS_DIR, DATA_DIR / "projects")
+        self.assertEqual(OUTPUTS_DIR, DATA_DIR / "outputs")
+        self.assertEqual(REFERENCES_DIR, DATA_DIR / "references")
+        self.assertEqual(LOGS_DIR, DATA_DIR / "logs")
+
     def test_speech_models_are_managed_inside_test_optional_models(self):
         from desktop.backend.module_service import MODEL_LOCKS, MODULE_SERVICE
         from desktop.backend.paths import MOSS_CODEC_DIR, MOSS_MODEL_DIR, OPTIONAL_MODELS_DIR

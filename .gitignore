@@ -9,6 +9,7 @@ optional-models/
 runtimes/
 startup-lab/multimodule-ui/
 data/
+# Pre-consolidation runtime roots are ignored so stale local copies never enter Git.
 /projects/
 references/
 outputs/

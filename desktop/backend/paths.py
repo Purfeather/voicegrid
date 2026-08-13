@@ -11,9 +11,9 @@ FRONTEND_DIST = DESKTOP_DIR / "frontend" / "dist"
 ASSETS_DIR = DESKTOP_DIR / "assets"
 DATA_DIR = Path(os.environ.get("MOSS_TTS_DATA_DIR", RUNTIME_ROOT / "data")).resolve()
 APP_DB = DATA_DIR / "app.db"
-PROJECTS_DIR = Path(os.environ.get("MOSS_TTS_PROJECTS_DIR", RUNTIME_ROOT / "projects")).resolve()
-OUTPUTS_DIR = Path(os.environ.get("MOSS_TTS_OUTPUTS_DIR", RUNTIME_ROOT / "outputs")).resolve()
-REFERENCES_DIR = Path(os.environ.get("MOSS_TTS_REFERENCES_DIR", RUNTIME_ROOT / "references")).resolve()
+PROJECTS_DIR = Path(os.environ.get("MOSS_TTS_PROJECTS_DIR", DATA_DIR / "projects")).resolve()
+OUTPUTS_DIR = Path(os.environ.get("MOSS_TTS_OUTPUTS_DIR", DATA_DIR / "outputs")).resolve()
+REFERENCES_DIR = Path(os.environ.get("MOSS_TTS_REFERENCES_DIR", DATA_DIR / "references")).resolve()
 UPLOADS_DIR = DATA_DIR / "uploads"
 VOICES_DIR = DATA_DIR / "voices"
 CACHE_DIR = DATA_DIR / "cache"
@@ -33,7 +33,7 @@ VOICE_GENERATOR_RUNTIME_DIR = RUNTIMES_DIR / "moss-voice-generator"
 SOUND_EFFECT_RUNTIME_DIR = RUNTIMES_DIR / "moss-soundeffect-v2"
 SOUND_EFFECT_SOURCE_DIR = RUNTIMES_DIR / "sources" / "moss-soundeffect-v2"
 MODULE_STATE_DIR = DATA_DIR / "modules"
-LOGS_DIR = Path(os.environ.get("MOSS_TTS_LOGS_DIR", RUNTIME_ROOT / "logs")).resolve()
+LOGS_DIR = Path(os.environ.get("MOSS_TTS_LOGS_DIR", DATA_DIR / "logs")).resolve()
 
 
 def ensure_directories() -> None:

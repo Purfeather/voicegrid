@@ -176,9 +176,9 @@ def run_case(
         env.update({
             "MOSS_TTS_RUNTIME_ROOT": str(runtime_root),
             "MOSS_TTS_DATA_DIR": str(data_dir),
-            "MOSS_TTS_PROJECTS_DIR": str(runtime_root / "projects"),
-            "MOSS_TTS_OUTPUTS_DIR": str(runtime_root / "outputs"),
-            "MOSS_TTS_REFERENCES_DIR": str(runtime_root / "references"),
+            "MOSS_TTS_PROJECTS_DIR": str(runtime_root / "data" / "projects"),
+            "MOSS_TTS_OUTPUTS_DIR": str(runtime_root / "data" / "outputs"),
+            "MOSS_TTS_REFERENCES_DIR": str(runtime_root / "data" / "references"),
             "MOSS_TTS_LOGS_DIR": str(logs_dir),
             "MOSS_TTS_WEBVIEW_PROFILE": str(profile_path),
             "MOSS_TTS_TRACE_PATH": str(trace_path),
