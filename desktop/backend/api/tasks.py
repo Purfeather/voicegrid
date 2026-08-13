@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Query
-from ..repository import clear_finished_tasks, get_task, list_tasks
+from ..repositories.activity import clear_finished_tasks, get_task, list_tasks
 from ..schemas import ModuleTaskCreate
 from ..task_service import TASKS
 from .errors import translate_error

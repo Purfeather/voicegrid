@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException
 from ..module_service import MODULE_SERVICE
-from ..repository import list_projects, list_tasks
+from ..repositories.activity import list_tasks
+from ..repositories.projects import list_projects
 from ..runtime_service import RUNTIME
 from ..schemas import ModuleInstallRequest
 from ..system_monitor import snapshot as system_snapshot

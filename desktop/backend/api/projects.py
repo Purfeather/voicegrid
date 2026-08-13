@@ -3,7 +3,8 @@ from __future__ import annotations
 import os
 from fastapi import APIRouter, Query
 from ..events import EVENTS
-from ..repository import clear_outputs, clear_project_activity, close_project, confirm_project_recovery, create_project, delete_project, get_project, list_outputs, list_projects, project_output_directory, save_project
+from ..repositories.activity import clear_outputs, clear_project_activity, list_outputs
+from ..repositories.projects import close_project, confirm_project_recovery, create_project, delete_project, get_project, list_projects, project_output_directory, save_project
 from ..schemas import ProjectCreate, ProjectPatch
 from .errors import translate_error
 
