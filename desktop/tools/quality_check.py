@@ -41,6 +41,7 @@ def main() -> int:
 
     run("encoding and line endings", [str(PYTHON), "-m", "unittest", "desktop.tests.test_encoding", "-q"])
     run("backend tests", [str(PYTHON), "-m", "unittest", "discover", "-s", "desktop/tests", "-p", "test_*.py", "-q"])
+    run("identity and icon consistency", [str(PYTHON), "-m", "unittest", "desktop.tests.test_identity", "-q"])
     run("generated API contracts", [str(PYTHON), "desktop/tools/generate_api_types.py", "--check"])
     run("frontend tests", ["npm.cmd", "test", "--", "--run"], FRONTEND)
     run("frontend production build", ["npm.cmd", "run", "build"], FRONTEND)

@@ -6,10 +6,7 @@ implementation lives in :mod:`desktop.native.host`.
 
 from desktop.native.host import NativeApi, NativeHost, NativeSplash, StartupTrace, WindowsMutex, activate_existing_instance, main, run_entrypoint, startup_log
 
-DISPLAY_VERSION = "2.0"
-
 __all__ = [
-    "DISPLAY_VERSION",
     "NativeApi",
     "NativeHost",
     "NativeSplash",
