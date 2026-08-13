@@ -205,27 +205,27 @@ export function VoiceDesignWorkbench(props: Props) {
     </ModuleParameterRail>}>
       <OptionalModuleColumn label="音色设计模块状态">
         {module && <ModuleInstallPanel module={module} onDetect={async () => { await api.detectModule("voice_design"); await props.onModulesChanged(); }} onInstall={async (repair) => { await api.installModule("voice_design", repair); await props.onModulesChanged(); props.onMessage("安装已在后台开始，可以继续使用其他模块。", "success"); }} />}
-        <VoiceAssetLibrary voices={props.voices} onChanged={props.onResourcesChanged} onMessage={props.onMessage} locked={!canEdit} />
-      </OptionalModuleColumn>
-
-      <OptionalModuleColumn label="音色提示词与试听台词">
         <Section title="设计方法" eyebrow="VOICE BLUEPRINT">
           <div className={styles.sectionBody}>
             <div className={styles.modeSwitch}>
               <button className={draft.mode === "composer" ? styles.active : ""} disabled={!canEdit} onClick={() => update({ mode: "composer" })}>模块组合</button>
               <button className={draft.mode === "freeform" ? styles.active : ""} disabled={!canEdit} onClick={() => update({ mode: "freeform" })}>自由描述</button>
             </div>
-            <p>组合器只生成预览，只有点击“应用到提示词”才会覆盖最终提示词。</p>
+            <p>组合器只生成预览，点击“应用到提示词”后才会覆盖最终提示词。</p>
           </div>
         </Section>
-        <Section title="音色提示词组合器" eyebrow="PROMPT COMPOSER" actions={<Badge tone="accent">8 个维度</Badge>}>
+        <VoiceAssetLibrary voices={props.voices} onChanged={props.onResourcesChanged} onMessage={props.onMessage} locked={!canEdit} />
+      </OptionalModuleColumn>
+
+      <OptionalModuleColumn label="音色提示词与试听台词">
+        <Section className={styles.composerSection} title="音色提示词组合器" eyebrow="PROMPT COMPOSER" actions={<Badge tone="accent">8 个维度</Badge>}>
           <fieldset className={styles.composerGrid} disabled={!canEdit || draft.mode !== "composer"}>
             {(Object.keys(OPTIONS) as Array<keyof VoicePromptComposer>).map((key) => <Field key={key} label={LABELS[key]} compact><Select value={draft.composer[key]} onChange={(event) => updateComposer(key, event.target.value)}>{OPTIONS[key].map((option) => <option key={option}>{option}</option>)}</Select></Field>)}
           </fieldset>
           <div className={styles.promptPreview}><span>组合预览</span><p>{composerPreview}</p><Button variant="secondary" icon={<WandSparkles size={15} />} disabled={!canEdit || draft.mode !== "composer"} onClick={() => update({ instruction: composerPreview, prompt_preview: composerPreview })}>应用到提示词</Button></div>
         </Section>
-        <Section title="最终音色提示词" eyebrow="FINAL INSTRUCTION" actions={<Badge tone={draft.mode === "freeform" ? "accent" : "neutral"}>{draft.mode === "freeform" ? "自由描述" : "已独立编辑"}</Badge>}>
-          <div className={styles.editorBody}><TextArea rows={6} disabled={!canEdit} value={draft.instruction} onChange={(event) => update({ instruction: event.target.value })} /><small>生成时只使用这里的完整文本；组合器不会在后台自动覆盖。</small></div>
+        <Section className={styles.finalPromptSection} title="最终音色提示词" eyebrow="FINAL INSTRUCTION" actions={<Badge tone={draft.mode === "freeform" ? "accent" : "neutral"}>{draft.mode === "freeform" ? "自由描述" : "已独立编辑"}</Badge>}>
+          <div className={styles.editorBody}><TextArea className={styles.finalPromptInput} rows={6} wrap="soft" disabled={!canEdit} value={draft.instruction} onChange={(event) => update({ instruction: event.target.value })} /><small>生成时只使用这里的完整文本；组合器不会在后台自动覆盖。</small></div>
         </Section>
         <Section title="试听台词" eyebrow="AUDITION SCRIPT">
           <div className={styles.editorBody}><TextArea rows={5} disabled={!canEdit} value={draft.text} onChange={(event) => update({ text: event.target.value })} /><span className={styles.counter}>{draft.text.length} 字</span></div>
