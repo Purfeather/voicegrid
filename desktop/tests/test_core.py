@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import tempfile
 import unittest
 from concurrent.futures import ThreadPoolExecutor
@@ -218,6 +219,25 @@ class RepositoryTests(unittest.TestCase):
                     self.assertFalse(list(project_file.parent.glob("*.tmp")))
             finally:
                 database.close()
+
+    def test_atomic_project_write_retries_transient_windows_denial(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            target = Path(temporary) / "project.json"
+            real_replace = os.replace
+            attempts = 0
+
+            def transient_replace(source, destination):
+                nonlocal attempts
+                attempts += 1
+                if attempts < 3:
+                    raise PermissionError(5, "transient sharing violation")
+                return real_replace(source, destination)
+
+            with patch.object(repository.os, "replace", side_effect=transient_replace):
+                repository._write_atomic(target, {"schema_version": 4, "id": "retry"})
+            self.assertEqual(attempts, 3)
+            self.assertEqual(json.loads(target.read_text(encoding="utf-8"))["id"], "retry")
+            self.assertFalse(list(target.parent.glob("*.tmp")))
 
     def test_built_in_style_is_protected(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

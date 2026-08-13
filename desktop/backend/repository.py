@@ -6,6 +6,7 @@ import re
 import shutil
 import tempfile
 import threading
+import time
 import uuid
 from datetime import datetime
 from pathlib import Path
@@ -120,7 +121,14 @@ def _write_atomic(path: Path, payload: dict[str, Any]) -> None:
                 stream.flush()
                 os.fsync(stream.fileno())
                 temporary = Path(stream.name)
-            os.replace(temporary, path)
+            for attempt in range(5):
+                try:
+                    os.replace(temporary, path)
+                    break
+                except PermissionError:
+                    if attempt == 4:
+                        raise
+                    time.sleep(.01 * (attempt + 1))
             temporary = None
         finally:
             if temporary is not None:
