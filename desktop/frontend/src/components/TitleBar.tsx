@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { ArrowLeft, Cpu, Gauge, Maximize2, MemoryStick, Minus, Moon, Power, Square, Sun, X } from "lucide-react";
 import type { HardwareMetrics, RuntimeSnapshot, ThemeId } from "../types";
 import { windowAction } from "../services/native";
@@ -16,6 +16,12 @@ interface Props {
   onBack?: () => void;
   onRelease: () => Promise<void>;
   startupMode?: boolean;
+}
+
+const ProductIdentityContext = createContext("声格 VoiceGrid");
+
+export function ProductIdentityProvider({ product, children }: { product: string; children: ReactNode }) {
+  return <ProductIdentityContext.Provider value={product}>{children}</ProductIdentityContext.Provider>;
 }
 
 function HardwarePopover({ metrics, runtime, onRelease, onClose }: { metrics: HardwareMetrics; runtime: RuntimeSnapshot; onRelease: () => Promise<void>; onClose: () => void }) {
@@ -42,6 +48,7 @@ function HardwarePopover({ metrics, runtime, onRelease, onClose }: { metrics: Ha
 }
 
 export function TitleBar({ projectName, saveState, runtime, metrics, theme, onTheme, onBack, onRelease, startupMode = false }: Props) {
+  const product = useContext(ProductIdentityContext);
   const [hardwareOpen, setHardwareOpen] = useState(false);
   const hardwareRef = useRef<HTMLDivElement>(null);
 
@@ -60,7 +67,7 @@ export function TitleBar({ projectName, saveState, runtime, metrics, theme, onTh
       {onBack && <IconButton label="返回项目中心" className={styles.noDrag} onClick={onBack}><ArrowLeft size={18} /></IconButton>}
       <div className={`${styles.dragRegion} pywebview-drag-region`} onDoubleClick={() => windowAction("maximize")}>
         <VoiceGridMark className={styles.productMark} />
-        <div className={styles.brand}><strong>声格 VoiceGrid</strong><span>龙融影业 · 2.0</span></div>
+        <div className={styles.brand}><strong>{product}</strong></div>
         {projectName && <><i className={styles.divider} /><div className={styles.project}><strong>{projectName}</strong><span>{saveState || "自动保存已开启"}</span></div></>}
       </div>
       <div className={styles.tools}>

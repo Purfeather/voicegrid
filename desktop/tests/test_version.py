@@ -29,12 +29,14 @@ class VersionConsistencyTests(unittest.TestCase):
 
     def test_runtime_build_info_comes_from_manifest(self) -> None:
         from desktop.native.build_info import BUILD_INFO
+        from desktop.native.splash_identity import SPLASH_IDENTITY
 
         build = json.loads((ROOT / "build.json").read_text(encoding="utf-8"))
+        identity = json.loads((ROOT / "desktop" / "splash-identity.json").read_text(encoding="utf-8"))
         self.assertEqual(BUILD_INFO.product, build["product"])
-        self.assertEqual(BUILD_INFO.brand, build["brand"])
-        self.assertEqual(BUILD_INFO.author, build["author"])
         self.assertEqual(BUILD_INFO.version, build["version"])
+        self.assertEqual(SPLASH_IDENTITY.organization, identity["organization"])
+        self.assertEqual(SPLASH_IDENTITY.author, identity["author"])
 
     def test_splash_shells_use_the_accent_brand_icon(self) -> None:
         expected_asset = "voicegrid-icon-accent"

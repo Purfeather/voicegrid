@@ -98,7 +98,6 @@ def _translate_error(exc: Exception) -> HTTPException:
 @app.get("/api/v2/bootstrap")
 def bootstrap():
     return {
-        "brand": BUILD_INFO.brand,
         "product": BUILD_INFO.product,
         "version": BUILD_INFO.version,
         "projects": list_projects(),
@@ -125,7 +124,6 @@ def health():
 @app.get("/api/v2/bootstrap/core")
 def bootstrap_core():
     return {
-        "brand": BUILD_INFO.brand,
         "product": BUILD_INFO.product,
         "version": BUILD_INFO.version,
         "languages": LANGUAGES,

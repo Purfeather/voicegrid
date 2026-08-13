@@ -18,6 +18,7 @@ from typing import Any, Callable
 import webview
 
 from desktop.native.build_info import ASSETS_DIR, BUILD_INFO, DESKTOP_DIR, ROOT
+from desktop.native.splash_identity import SPLASH_IDENTITY
 from desktop.native.single_instance import WindowsMutex
 from desktop.native.single_instance import activate_existing_instance as _activate_existing_instance
 from desktop.native.startup import LOGS_DIR, STARTED_AT, STARTUP_LOG, TRACE_PATH, StartupTrace, json_request as _json_request, startup_log
@@ -105,8 +106,8 @@ class NativeSplash:
             brand_copy = tk.Frame(brand, bg="#090a0b")
             brand_copy.pack(side="left", padx=12)
             tk.Label(brand_copy, text=BUILD_INFO.product, bg="#090a0b", fg="#f4f6f8", font=("Microsoft YaHei UI", 12, "bold")).pack(anchor="w")
-            tk.Label(brand_copy, text=f"{BUILD_INFO.brand} · {BUILD_INFO.display_version}", bg="#090a0b", fg="#9aa2ad", font=("Microsoft YaHei UI", 9)).pack(anchor="w", pady=(3, 0))
-            tk.Label(brand_copy, text=f"作者：{BUILD_INFO.author}", bg="#090a0b", fg="#9aa2ad", font=("Segoe UI", 8)).pack(anchor="w", pady=(3, 0))
+            tk.Label(brand_copy, text=f"{SPLASH_IDENTITY.organization} · {BUILD_INFO.display_version}", bg="#090a0b", fg="#9aa2ad", font=("Microsoft YaHei UI", 9)).pack(anchor="w", pady=(3, 0))
+            tk.Label(brand_copy, text=f"作者：{SPLASH_IDENTITY.author}", bg="#090a0b", fg="#9aa2ad", font=("Microsoft YaHei UI", 8)).pack(anchor="w", pady=(3, 0))
 
             content = tk.Frame(shell, bg="#090a0b")
             content.pack(fill="both", expand=True, pady=(34, 0))
@@ -729,7 +730,7 @@ class NativeHost:
                 pystray.Menu.SEPARATOR,
                 pystray.MenuItem("退出", lambda *_: self.command("exit")),
             )
-            self.tray = pystray.Icon("voicegrid-v2", image, f"{BUILD_INFO.product} · {BUILD_INFO.brand}", menu)
+            self.tray = pystray.Icon("voicegrid-v2", image, BUILD_INFO.product, menu)
             if TRACE is not None:
                 TRACE.record("tray_created", "ready", "系统托盘已创建")
             self.tray.run()

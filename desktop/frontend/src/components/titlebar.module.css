@@ -18,7 +18,7 @@
 .noDrag { -webkit-app-region: no-drag; }
 .brand, .project { min-width: 0; display: grid; line-height: 1.15; }
 .brand strong { font-size: 13px; letter-spacing: .04em; }
-.brand span, .project span { margin-top: 3px; color: var(--text-muted); font-size: 10px; }
+.project span { margin-top: 3px; color: var(--text-muted); font-size: 10px; }
 .divider { width: 1px; height: 24px; background: var(--border-strong); }
 .project { max-width: 260px; }
 .project strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }

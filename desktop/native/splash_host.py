@@ -8,6 +8,7 @@ import tkinter as tk
 from typing import Any
 
 from desktop.native.build_info import ASSETS_DIR, BUILD_INFO
+from desktop.native.splash_identity import SPLASH_IDENTITY
 
 ROOT = ASSETS_DIR.parent.parent
 ICON_PATH = ASSETS_DIR / "voicegrid.ico"
@@ -76,8 +77,8 @@ class SplashWindow:
         brand_copy = tk.Frame(brand, bg="#090a0b")
         brand_copy.pack(side="left", padx=12)
         tk.Label(brand_copy, text=BUILD_INFO.product, bg="#090a0b", fg="#f4f6f8", font=("Microsoft YaHei UI", 12, "bold")).pack(anchor="w")
-        tk.Label(brand_copy, text=f"{BUILD_INFO.brand} · {BUILD_INFO.display_version}", bg="#090a0b", fg="#9aa2ad", font=("Microsoft YaHei UI", 9)).pack(anchor="w", pady=(3, 0))
-        tk.Label(brand_copy, text=f"作者：{BUILD_INFO.author}", bg="#090a0b", fg="#9aa2ad", font=("Segoe UI", 8)).pack(anchor="w", pady=(3, 0))
+        tk.Label(brand_copy, text=f"{SPLASH_IDENTITY.organization} · {BUILD_INFO.display_version}", bg="#090a0b", fg="#9aa2ad", font=("Microsoft YaHei UI", 9)).pack(anchor="w", pady=(3, 0))
+        tk.Label(brand_copy, text=f"作者：{SPLASH_IDENTITY.author}", bg="#090a0b", fg="#9aa2ad", font=("Microsoft YaHei UI", 8)).pack(anchor="w", pady=(3, 0))
 
         status = tk.Frame(shell, bg="#090a0b")
         status.pack(side="bottom", fill="x")

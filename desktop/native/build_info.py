@@ -13,9 +13,7 @@ ASSETS_DIR = DESKTOP_DIR / "assets"
 
 @dataclass(frozen=True)
 class BuildInfo:
-    brand: str
     product: str
-    author: str
     version: str
     build_id: str
 
@@ -27,7 +25,7 @@ class BuildInfo:
 
     @property
     def window_title(self) -> str:
-        return f"{self.product} {self.display_version}"
+        return self.product
 
 
 def _read_manifest() -> dict[str, Any]:
@@ -40,10 +38,7 @@ def _read_manifest() -> dict[str, Any]:
 
 _manifest = _read_manifest()
 BUILD_INFO = BuildInfo(
-    brand=str(_manifest.get("brand") or "龙融影业"),
     product=str(_manifest.get("product") or "声格 VoiceGrid"),
-    author=str(_manifest.get("author") or "Wang Xiaohan"),
     version=str(_manifest.get("version") or "2.0.0-dev"),
     build_id=str(_manifest.get("build_id") or "development"),
 )
-

@@ -17,7 +17,7 @@ import { api } from "../services/api";
 import { subscribeEvents } from "../services/events";
 import { continueWaiting, notifyFrontendReady, openLogFolder, reportStartupEvent, retryStartup, startupStatus, windowAction } from "../services/native";
 import { applyTheme, loadTheme } from "../theme/themes";
-import { TitleBar } from "../components/TitleBar";
+import { ProductIdentityProvider, TitleBar } from "../components/TitleBar";
 import { Button, EmptyState } from "../components/UI";
 import { ProjectCenter } from "../features/projects/ProjectCenter";
 import styles from "./App.module.css";
@@ -236,14 +236,14 @@ export function App() {
 
   const criticalPending = core.status === "idle" || core.status === "loading" || projects.status === "idle" || projects.status === "loading";
 
-  if (core.status === "error") return <>
+  if (core.status === "error") return <ProductIdentityProvider product={core.data?.product || "声格 VoiceGrid"}><>
     <TitleBar runtime={runtime.data} metrics={metrics.data} theme={theme} onTheme={setTheme} startupMode onRelease={async () => undefined} />
     <main id="main-content" className={styles.fatal}>
       <StartupDiagnostic title="本地核心服务未准备完成" detail={`${core.error}。项目、音色和模型文件均未被修改。`} retry={() => { void retryCritical(); }} />
     </main>
-  </>;
+  </></ProductIdentityProvider>;
 
-  return <div className={styles.app}>
+  return <ProductIdentityProvider product={core.data?.product || "声格 VoiceGrid"}><div className={styles.app}>
     <Routes>
       <Route path="/projects" element={<>
         <TitleBar runtime={runtime.data} metrics={metrics.data} theme={theme} onTheme={setTheme} startupMode={criticalPending} onRelease={releaseRuntime} />
@@ -315,5 +315,5 @@ export function App() {
       <Route path="*" element={<Navigate to="/projects" replace />} />
     </Routes>
     {toast && <div className={`${styles.toast} ${toast.tone === "error" ? styles.toastError : ""}`} role="status">{toast.message}</div>}
-  </div>;
+  </div></ProductIdentityProvider>;
 }
