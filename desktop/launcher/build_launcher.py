@@ -42,19 +42,30 @@ def assembly_info(build: dict[str, str]) -> str:
     version = str(build["version"])
     file_version = numeric_version(version)
     product = str(build["product"])
-    company = str(build["brand"])
-    author = str(build["author"])
+    company = "VoiceGrid"
     return "\n".join(
         [
             "using System.Reflection;",
             f"[assembly: AssemblyTitle({csharp_literal(product)})]",
-            f"[assembly: AssemblyDescription({csharp_literal(product + ' lightweight Windows launcher')})]",
+            f"[assembly: AssemblyDescription({csharp_literal(product)})]",
             f"[assembly: AssemblyCompany({csharp_literal(company)})]",
             f"[assembly: AssemblyProduct({csharp_literal(product)})]",
-            f"[assembly: AssemblyCopyright({csharp_literal('Copyright © ' + author + ' 2026')})]",
+            f"[assembly: AssemblyCopyright({csharp_literal('')})]",
             f"[assembly: AssemblyVersion({csharp_literal(file_version)})]",
             f"[assembly: AssemblyFileVersion({csharp_literal(file_version)})]",
             f"[assembly: AssemblyInformationalVersion({csharp_literal(version)})]",
+            "",
+        ]
+    )
+
+
+def launcher_identity(build: dict[str, str]) -> str:
+    return "\n".join(
+        [
+            "internal static class LauncherIdentity",
+            "{",
+            f"    internal const string ProductName = {csharp_literal(str(build['product']))};",
+            "}",
             "",
         ]
     )
@@ -68,8 +79,10 @@ def build_launcher() -> Path:
     with tempfile.TemporaryDirectory(prefix="voicegrid-launcher-", dir=cache_root) as temporary:
         temporary_path = Path(temporary)
         assembly_path = temporary_path / "AssemblyInfo.cs"
+        identity_path = temporary_path / "LauncherIdentity.cs"
         candidate = temporary_path / OUTPUT_NAME
         assembly_path.write_text(assembly_info(build), encoding="utf-8", newline="\n")
+        identity_path.write_text(launcher_identity(build), encoding="utf-8", newline="\n")
         command = [
             str(compiler),
             "/nologo",
@@ -82,6 +95,7 @@ def build_launcher() -> Path:
             f"/out:{candidate}",
             str(LAUNCHER_DIR / "VoiceGridLauncher.cs"),
             str(assembly_path),
+            str(identity_path),
         ]
         result = subprocess.run(command, cwd=ROOT, capture_output=True, text=True, encoding="utf-8", errors="replace")
         if result.returncode:

@@ -7,7 +7,6 @@ using System.Text;
 
 internal static class VoiceGridLauncher
 {
-    private const string ProductName = "\u58f0\u683c VoiceGrid";
     private const string HeadlessVariable = "VOICEGRID_LAUNCHER_HEADLESS";
 
     [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
@@ -47,14 +46,14 @@ internal static class VoiceGridLauncher
             Process process = Process.Start(startInfo);
             if (process == null)
             {
-                return Fail(root, 3, "Process.Start returned null.", "\u65e0\u6cd5\u521b\u5efa\u58f0\u683c VoiceGrid \u684c\u9762\u8fdb\u7a0b\u3002");
+                return Fail(root, 3, "Process.Start returned null.", "\u65e0\u6cd5\u521b\u5efa " + LauncherIdentity.ProductName + " \u684c\u9762\u8fdb\u7a0b\u3002");
             }
             process.Dispose();
             return 0;
         }
         catch (Exception error)
         {
-            return Fail(root, 3, error.ToString(), "\u58f0\u683c VoiceGrid \u542f\u52a8\u5931\u8d25\u3002" + Environment.NewLine + Environment.NewLine + error.Message);
+            return Fail(root, 3, error.ToString(), LauncherIdentity.ProductName + " \u542f\u52a8\u5931\u8d25\u3002" + Environment.NewLine + Environment.NewLine + error.Message);
         }
     }
 
@@ -83,7 +82,7 @@ internal static class VoiceGridLauncher
         if (!string.Equals(Environment.GetEnvironmentVariable(HeadlessVariable), "1", StringComparison.Ordinal))
         {
             MessageBox(IntPtr.Zero, userMessage + Environment.NewLine + Environment.NewLine
-                + "\u8be6\u7ec6\u4fe1\u606f\uff1alogs\\launcher.log", ProductName, 0x10U);
+                + "\u8be6\u7ec6\u4fe1\u606f\uff1adata\\logs\\launcher.log", LauncherIdentity.ProductName, 0x10U);
         }
         return exitCode;
     }
@@ -92,7 +91,7 @@ internal static class VoiceGridLauncher
     {
         try
         {
-            string logs = Path.Combine(root, "logs");
+            string logs = Path.Combine(root, "data", "logs");
             Directory.CreateDirectory(logs);
             string line = "[" + DateTime.Now.ToString("yyyy-MM-ddTHH:mm:ss.fff") + "] " + message + Environment.NewLine;
             File.AppendAllText(Path.Combine(logs, "launcher.log"), line, new UTF8Encoding(false));

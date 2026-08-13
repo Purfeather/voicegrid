@@ -49,7 +49,7 @@ class LauncherTests(unittest.TestCase):
                 check=False,
             )
             self.assertEqual(result.returncode, 2)
-            log = (isolated / "logs" / "launcher.log").read_text(encoding="utf-8")
+            log = (isolated / "data" / "logs" / "launcher.log").read_text(encoding="utf-8")
             self.assertIn("Missing required files", log)
 
     def test_manifest_requests_no_elevation(self) -> None:
