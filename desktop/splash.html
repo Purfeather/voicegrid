@@ -80,7 +80,7 @@
     <header class="titlebar">
       <div class="drag pywebview-drag-region">
         <img src="./assets/voicegrid-icon-accent.svg" alt="声格 VoiceGrid" />
-        <div class="brand"><strong id="build-product">声格 VoiceGrid</strong><span id="build-attribution">制作信息加载中</span></div>
+        <div class="brand"><strong id="build-product">声格 VoiceGrid</strong><span id="build-attribution">制作信息加载中</span><span id="build-author">作者信息加载中</span></div>
       </div>
       <div class="window-controls">
         <button type="button" aria-label="最小化" data-action="minimize">
@@ -127,10 +127,10 @@
       fetch("../build.json").then((response) => response.json()),
       fetch("./splash-identity.json").then((response) => response.json()),
     ]).then(([build, identity]) => {
-      const displayVersion = String(build.version || "").split("-")[0].split(".").slice(0, 2).join(".");
       document.title = build.product;
       document.getElementById("build-product").textContent = build.product;
-      document.getElementById("build-attribution").textContent = `${identity.organization} · ${displayVersion} · 作者：${identity.author}`;
+      document.getElementById("build-attribution").textContent = identity.organization;
+      document.getElementById("build-author").textContent = `作者：${identity.author}`;
       document.getElementById("build-version").textContent = build.version;
     }).catch(() => {});
     const phases = ["shell", "backend_import", "database", "project_recovery", "api", "frontend", "ready"];
