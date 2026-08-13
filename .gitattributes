@@ -19,6 +19,7 @@
 
 # Binary assets and audio must never receive line-ending conversion.
 *.ico binary
+*.exe binary
 *.png binary
 *.jpg binary
 *.jpeg binary
