@@ -38,6 +38,31 @@ class ReleasePipelineTests(unittest.TestCase):
         self.assertNotIn("VoiceGrid 声格.exe", files)
         self.assertFalse(any(path.startswith("desktop/frontend/dist/") for path in files))
 
+    def test_host_runtime_does_not_make_missing_speech_models_a_repair(self) -> None:
+        from desktop.backend.module_service import ModuleService
+
+        service = ModuleService()
+        missing = [
+            "optional-models\\MOSS-TTS-Local-Transformer-v1.5",
+            "optional-models\\MOSS-Audio-Tokenizer-v2",
+        ]
+        self.assertFalse(
+            service._has_partial_install(
+                "speech",
+                model_ready=False,
+                runtime_ready=True,
+                missing=missing,
+            )
+        )
+        self.assertTrue(
+            service._has_partial_install(
+                "speech",
+                model_ready=False,
+                runtime_ready=True,
+                missing=missing[:1],
+            )
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

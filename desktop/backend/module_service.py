@@ -82,6 +82,19 @@ class ModuleService:
     def _runtime_complete(self, runtime: Path, module_id: str) -> bool:
         return runtime_complete(runtime, module_id, _append_module_log)
 
+    def _has_partial_install(
+        self,
+        module_id: str,
+        model_ready: bool,
+        runtime_ready: bool,
+        missing: list[str],
+    ) -> bool:
+        model_count = len(self._model_ids(module_id))
+        missing_models = sum(path.startswith("optional-models") for path in missing)
+        any_model_present = model_ready or missing_models < model_count
+        isolated_runtime_present = runtime_dir(module_id) is not None and runtime_ready
+        return any_model_present or isolated_runtime_present
+
     def describe(self, module_id: str, inspect: bool = False) -> dict[str, Any]:
         if module_id not in MODULES:
             raise ValueError("未知模块。")
@@ -94,7 +107,8 @@ class ModuleService:
             missing = list(state["missing"]) if "missing" in state else self._manual_paths(module_id)
         installing = bool(self.install_threads.get(module_id) and self.install_threads[module_id].is_alive())
         installed = model_ready and runtime_ready
-        status = "installing" if installing else "ready" if installed else "repair_required" if model_ready or runtime_ready else "not_installed"
+        partial = self._has_partial_install(module_id, model_ready, runtime_ready, missing)
+        status = "installing" if installing else "ready" if installed else "repair_required" if partial else "not_installed"
         interrupted = state.get("status") == "installing" and not installing and not installed
         if interrupted:
             status = "repair_required"
@@ -130,13 +144,14 @@ class ModuleService:
             raise ValueError("未知模块。")
         model_ready, runtime_ready, missing = self._detected(module_id)
         installed = model_ready and runtime_ready
+        partial = self._has_partial_install(module_id, model_ready, runtime_ready, missing)
         self._save_state(
             module_id,
             installed=installed,
             model_ready=model_ready,
             runtime_ready=runtime_ready,
             missing=missing,
-            status="ready" if installed else "repair_required" if model_ready or runtime_ready else "not_installed",
+            status="ready" if installed else "repair_required" if partial else "not_installed",
             phase="validated" if installed else "idle",
             progress=1.0 if installed else 0.0,
             message="模型与运行环境已就绪" if installed else "未检测到完整安装",
