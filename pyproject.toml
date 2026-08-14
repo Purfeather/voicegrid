@@ -1,0 +1,15 @@
+[project]
+name = "voicegrid"
+version = "1.0.0"
+description = "Local desktop audio production workstation"
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+license = { file = "LICENSE" }
+authors = [{ name = "VoiceGrid contributors" }]
+dynamic = ["dependencies"]
+
+[project.urls]
+Repository = "https://github.com/"
+
+[tool.voicegrid]
+build-id = "VOICEGRID-1.0.0-20260814"

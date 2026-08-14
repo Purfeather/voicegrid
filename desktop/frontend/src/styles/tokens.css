@@ -1,0 +1,83 @@
+:root,
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --surface-canvas: #090a0b;
+  --surface-panel: #111315;
+  --surface-raised: #181b1e;
+  --surface-hover: #202429;
+  --surface-sunken: #070809;
+  --text-primary: #f4f6f8;
+  --text-secondary: #c5cad1;
+  --text-muted: #9aa2ad;
+  --border-subtle: #25292e;
+  --border-strong: #343a41;
+  --accent: #f3ff00;
+  --accent-hover: #dce800;
+  --on-accent: #090a0b;
+  --accent-soft: rgb(243 255 0 / 11%);
+  --accent-gradient: linear-gradient(135deg, #f3ff00, #d7e600);
+  --success: #40d68d;
+  --warning: #ffb84d;
+  --audio-trim-scrim: rgb(0 0 0 / 58%);
+  --audio-trim-selection: rgb(243 255 0 / 12%);
+  --audio-trim-highlight: rgb(243 255 0 / 34%);
+  --danger: #ff5c67;
+  --on-danger: #ffffff;
+  --info: #69a7ff;
+  --shadow-popover: 0 24px 64px rgb(0 0 0 / 48%);
+  --scrim: rgb(0 0 0 / 58%);
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+  --surface-canvas: #ffffff;
+  --surface-panel: #f6f7fb;
+  --surface-raised: #ffffff;
+  --surface-hover: #eef0f6;
+  --surface-sunken: #f0f2f7;
+  --text-primary: #111318;
+  --text-secondary: #344054;
+  --text-muted: #667085;
+  --border-subtle: #e3e6ed;
+  --border-strong: #cfd5df;
+  --accent: #4f46e5;
+  --accent-hover: #4338ca;
+  --on-accent: #ffffff;
+  --accent-soft: rgb(79 70 229 / 9%);
+  --accent-gradient: linear-gradient(135deg, #2563eb, #7c3aed);
+  --success: #059669;
+  --warning: #a45508;
+  --audio-trim-scrim: rgb(17 24 39 / 28%);
+  --audio-trim-selection: rgb(79 70 229 / 10%);
+  --audio-trim-highlight: rgb(79 70 229 / 32%);
+  --danger: #c92535;
+  --on-danger: #ffffff;
+  --info: #2859c5;
+  --shadow-popover: 0 24px 64px rgb(30 41 59 / 20%);
+  --scrim: rgb(17 24 39 / 42%);
+}
+
+:root {
+  --font-sans: "Segoe UI Variable", "Microsoft YaHei UI", "Noto Sans SC", sans-serif;
+  --font-mono: "Cascadia Mono", "SFMono-Regular", Consolas, monospace;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 20px;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --titlebar-height: 56px;
+  --parameter-collapsed: 58px;
+  --parameter-expanded: 238px;
+  --motion-fast: 150ms;
+  --motion-normal: 200ms;
+  --ease-standard: cubic-bezier(.2, .8, .2, 1);
+  --layer-titlebar: 20;
+  --layer-popover: 60;
+  --layer-modal: 100;
+  --shadow-compact: 0 8px 24px rgb(0 0 0 / 24%);
+}

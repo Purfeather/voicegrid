@@ -1,0 +1,7 @@
+{
+  "product": "声格 VoiceGrid",
+  "version": "1.0.0",
+  "model": "MOSS-TTS-Local-Transformer-v1.5 (4B)",
+  "build_id": "VOICEGRID-1.0.0-20260814",
+  "status": "release"
+}

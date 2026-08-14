@@ -1,0 +1,58 @@
+# Local Python and frontend dependency environments
+.venv/
+node_modules/
+**/node_modules/
+
+# Shared model junction and generated runtime state
+models/
+optional-models/
+runtimes/
+startup-lab/multimodule-ui/
+data/
+# Pre-consolidation runtime roots are ignored so stale local copies never enter Git.
+/projects/
+references/
+outputs/
+logs/
+.rebuild-cache/
+
+# Archived pre-rebuild material is retained locally, not versioned
+archive/
+
+# Startup performance lab runtime artifacts
+startup-lab/cache/
+startup-lab/results/
+
+# Python, test and build caches
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.tsbuildinfo
+coverage/
+.coverage
+
+# Local editor and operating-system files
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Temporary and package artifacts
+*.tmp
+*.temp
+*.bak
+*.zip
+*.7z
+*.part*
+
+desktop/frontend/.vite/
+desktop/frontend/coverage/
+
+# Generated hardware acceptance details (the concise signed-off report is tracked)
+desktop/tests/reports/voice-generator-20*.json
+desktop/tests/reports/voice-generator-20*.md
+desktop/tests/reports/sound-effect-20*.json
+desktop/tests/reports/sound-effect-20*.md

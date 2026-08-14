@@ -1,0 +1,37 @@
+VoiceGrid 1.0 第三方组件声明
+===============================
+
+VoiceGrid 自有代码采用 MIT License。以下第三方组件不因与 VoiceGrid 一同
+分发而改用 MIT；其版权和许可证继续由各自权利人持有。
+
+主要桌面与后端组件
+------------------
+
+- CPython 3.12：Python Software Foundation License。
+- PyTorch / TorchAudio：BSD 类许可证；发布运行环境内保留 LICENSE 与 NOTICE。
+- Hugging Face Transformers：Apache License 2.0。
+- ModelScope / ModelScope Hub：Apache License 2.0。
+- FastAPI、Pydantic：MIT License。
+- Uvicorn：BSD 3-Clause License。
+- pywebview：BSD 3-Clause License。
+- python-soundfile：BSD 3-Clause License。
+- librosa：ISC License。
+- SciPy：BSD 3-Clause，并包含其二进制依赖的附加声明。
+- pystray：LGPL-3.0。
+- Pillow：MIT-CMU License。
+
+主要前端组件
+------------
+
+- React / React DOM：MIT License。
+- React Router：MIT License。
+- Vite：MIT License。
+- TypeScript：Apache License 2.0。
+- Lucide：ISC License。
+
+完整二进制包中，各 Python 包的 dist-info/licenses、LICENSE、COPYING 和
+NOTICE 文件均随运行环境保留。前端依赖的精确版本记录在
+desktop/frontend/package-lock.json。源代码、版权声明和最新许可文本请以各
+组件上游仓库为准。
+
+本清单是便于识别主要依赖的摘要，不替代第三方许可证原文。
