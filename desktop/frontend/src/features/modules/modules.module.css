@@ -10,8 +10,8 @@
 .installPanel { display: grid; gap: 10px; padding: 12px; }
 .installPanel > p { margin: 0; color: var(--text-secondary); font-size: 10px; line-height: 1.55; }
 .installActions { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
-.installProgress { display: grid; gap: 6px; }
-.installProgress span { color: var(--text-muted); font-size: 9px; overflow-wrap: anywhere; }
+.installProgress { display: grid; gap: 6px; min-height: 58px; align-content: start; }
+.installProgress span { display: block; min-height: 28px; max-height: 32px; overflow: hidden; color: var(--text-muted); font-size: 9px; line-height: 1.35; overflow-wrap: anywhere; }
 .installError { color: var(--danger); overflow-wrap: anywhere; }
 .manualPaths { display: flex; align-items: center; gap: 6px; color: var(--text-muted); font-size: 9px; }
 .manualPaths svg { flex: none; color: var(--accent); }
