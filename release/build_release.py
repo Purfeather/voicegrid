@@ -353,17 +353,23 @@ def archive_stage(release_root: Path, flavor: str) -> list[Path]:
     for old in artifacts.glob(base.name + "*"):
         safe_remove(old, release_root)
     seven_zip = find_7zip(release_root)
-    total = sum(path.stat().st_size for path in iter_files(stage))
     command = [
         str(seven_zip), "a", "-t7z", "-mx=5", "-m0=lzma2", "-mmt=on",
     ]
-    if flavor == "offline" or total > 4 * 1024**3:
+    # The offline edition is always distributed as 4 GiB volumes. Standard
+    # and source editions stay as single archives; their compressed artifact
+    # size is validated after creation and must remain within the 4 GiB limit.
+    if flavor == "offline":
         command.append("-v4g")
     command.extend([str(base), stage.name])
     run(command, stage.parent)
     volumes = sorted(artifacts.glob(base.name + "*"))
     if not volumes:
         raise RuntimeError(f"Archive was not created: {base}")
+    if flavor != "offline" and len(volumes) == 1 and volumes[0].stat().st_size > 4 * 1024**3:
+        raise RuntimeError(
+            f"{flavor} archive exceeds 4 GiB and must be rebuilt as volumes: {volumes[0]}"
+        )
     run([str(seven_zip), "t", str(volumes[0])], artifacts)
     return volumes
 

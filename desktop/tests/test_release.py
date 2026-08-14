@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import importlib.util
+import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -62,6 +64,37 @@ class ReleasePipelineTests(unittest.TestCase):
                 missing=missing[:1],
             )
         )
+
+    def test_only_offline_archive_uses_fixed_four_gib_volumes(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            release_root = Path(temporary)
+            (release_root / "artifacts").mkdir()
+            tool = release_root / "tools" / "7zip-26.02" / "7z.exe"
+            tool.parent.mkdir(parents=True)
+            tool.touch()
+
+            commands: list[list[str]] = []
+
+            def fake_run(command: list[str], _cwd: Path) -> None:
+                commands.append(command)
+                if command[1] != "a":
+                    return
+                archive = Path(command[-2])
+                output = archive.with_name(archive.name + ".001") if "-v4g" in command else archive
+                output.write_bytes(b"archive")
+
+            for flavor in ("standard", "source", "offline"):
+                stage = release_root / "staging" / self.module.PACKAGE_NAMES[flavor]
+                stage.mkdir(parents=True)
+                (stage / "payload.bin").write_bytes(b"payload")
+                with mock.patch.object(self.module, "run", side_effect=fake_run):
+                    self.module.archive_stage(release_root, flavor)
+
+            archive_commands = [command for command in commands if command[1] == "a"]
+            by_package = {command[-1]: command for command in archive_commands}
+            self.assertNotIn("-v4g", by_package[self.module.PACKAGE_NAMES["standard"]])
+            self.assertNotIn("-v4g", by_package[self.module.PACKAGE_NAMES["source"]])
+            self.assertIn("-v4g", by_package[self.module.PACKAGE_NAMES["offline"]])
 
 
 if __name__ == "__main__":
