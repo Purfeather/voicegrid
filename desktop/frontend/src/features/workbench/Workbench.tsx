@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import type { AppEvent, HardwareMetrics, ModuleDescriptor, ProjectDetail, RuntimeSnapshot, StylePreset, TaskRecord, ThemeId, VoiceAsset, WorkspaceDraft } from "../../types";
 import { api } from "../../services/api";
+import { upsertTask } from "../../utils/taskList";
 import { registerExitSaveHandler } from "../../services/exitCoordinator";
 import { TitleBar } from "../../components/TitleBar";
 import { EmptyState } from "../../components/UI";
@@ -44,6 +45,7 @@ export function Workbench(props: Props) {
   const editVersion = useRef(0);
   const saveQueue = useRef<Promise<void>>(Promise.resolve());
   const exitInProgress = useRef(false);
+  const submitLock = useRef(false);
 
   const refreshProject = useCallback(async (preserveWorkspace = false) => {
     const [detail, taskList] = await Promise.all([api.openProject(projectId), api.tasks(projectId, "speech")]);
@@ -60,7 +62,7 @@ export function Workbench(props: Props) {
         setSaveState("项目已保存");
       }).catch(() => undefined);
     }
-  }, [projectId]);
+  }, [projectId, props.onMessage]);
 
   const queueSave = useCallback((snapshot: WorkspaceDraft, version: number) => {
     if (!project) return Promise.resolve();
@@ -87,7 +89,7 @@ export function Workbench(props: Props) {
     if (event.type === "task.updated") {
       const task = event.payload as TaskRecord;
       if (task.project_id !== projectId || task.module !== "speech") return;
-      setTasks((current) => [task, ...current.filter((item) => item.id !== task.id)].sort((a, b) => b.created_at.localeCompare(a.created_at)));
+      setTasks((current) => upsertTask(current, task));
       if (task.status === "completed") refreshProject(true).catch(() => undefined);
     }
     if (event.type === "task.removed") {
@@ -130,14 +132,16 @@ export function Workbench(props: Props) {
 
   async function generate() {
     if (!project || !workspace) return;
+    if (submitLock.current) return;
+    submitLock.current = true;
     try {
       if (dirty.current) {
         await queueSave(workspace, editVersion.current);
       }
       const task = await api.createModuleTask(project.id, "speech", workspace);
-      setTasks((current) => [task, ...current]);
+      setTasks((current) => upsertTask(current, task));
       props.onMessage("任务已加入队列。", "success");
-    } catch (error) { props.onMessage(error instanceof Error ? error.message : "无法创建任务", "error"); }
+    } catch (error) { props.onMessage(error instanceof Error ? error.message : "无法创建任务", "error"); } finally { submitLock.current = false; }
   }
 
   async function back() {
@@ -181,10 +185,10 @@ export function Workbench(props: Props) {
           generating={generating}
           onWorkspace={updateWorkspace}
           onGenerate={generate}
-          onCancel={async (id) => { const task = await api.cancelTask(id); setTasks((current) => [task, ...current.filter((item) => item.id !== id)]); }}
+          onCancel={async (id) => { const task = await api.cancelTask(id); setTasks((current) => upsertTask(current, task)); }}
           onRemoveTask={async (id) => {
             const result = await api.removeTask(id);
-            if (result.pending && result.task) setTasks((current) => [result.task!, ...current.filter((item) => item.id !== id)]);
+            if (result.pending && result.task) setTasks((current) => upsertTask(current, result.task!));
             else setTasks((current) => current.filter((item) => item.id !== id));
           }}
           onClearActivity={async () => {

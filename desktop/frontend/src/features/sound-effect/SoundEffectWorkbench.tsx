@@ -3,6 +3,7 @@ import { AudioLines, Download, FolderOpen, Heart, Square } from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
 import type { HardwareMetrics, ModuleDescriptor, OutputRecord, ProjectDetail, RuntimeSnapshot, SoundEffectDraft, TaskRecord, ThemeId } from "../../types";
 import { api } from "../../services/api";
+import { upsertTask } from "../../utils/taskList";
 import { registerExitSaveHandler } from "../../services/exitCoordinator";
 import { TitleBar } from "../../components/TitleBar";
 import { Badge, Button, EmptyState, Field, IconButton, Progress, Section, TextArea, TextInput } from "../../components/UI";
@@ -48,6 +49,7 @@ export function SoundEffectWorkbench(props: Props) {
   const editVersion = useRef(0);
   const saveQueue = useRef<Promise<void>>(Promise.resolve());
   const exitInProgress = useRef(false);
+  const submitLock = useRef(false);
   const interactive = Boolean(module?.installed && module.engine_available);
 
   const refresh = useCallback(async (preserveDraft = false) => {
@@ -136,12 +138,14 @@ export function SoundEffectWorkbench(props: Props) {
 
   async function generate() {
     if (!project || !draft || !interactive) return;
+    if (submitLock.current) return;
+    submitLock.current = true;
     try {
       if (dirty.current) await queueSave(draft, editVersion.current);
       const task = await api.createModuleTask(project.id, "sound_effect", draft);
-      setTasks((current) => [task, ...current]);
+      setTasks((current) => upsertTask(current, task));
       props.onMessage("音效生成任务已加入全局队列。", "success");
-    } catch (error) { props.onMessage(error instanceof Error ? error.message : "无法创建音效生成任务", "error"); }
+    } catch (error) { props.onMessage(error instanceof Error ? error.message : "无法创建音效生成任务", "error"); } finally { submitLock.current = false; }
   }
 
   async function closeProject() {

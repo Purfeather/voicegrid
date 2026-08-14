@@ -3,6 +3,7 @@ import { Save, Square, WandSparkles } from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
 import type { AppEvent, HardwareMetrics, ModuleDescriptor, OutputRecord, ProjectDetail, RuntimeSnapshot, TaskRecord, ThemeId, VoiceAsset, VoiceDesignDraft, VoicePromptComposer } from "../../types";
 import { api } from "../../services/api";
+import { upsertTask } from "../../utils/taskList";
 import { registerExitSaveHandler } from "../../services/exitCoordinator";
 import { TitleBar } from "../../components/TitleBar";
 import { Badge, Button, EmptyState, Field, IconButton, Modal, Progress, Section, Select, TextArea, TextInput } from "../../components/UI";
@@ -73,6 +74,7 @@ export function VoiceDesignWorkbench(props: Props) {
   const editVersion = useRef(0);
   const saveQueue = useRef<Promise<void>>(Promise.resolve());
   const exitInProgress = useRef(false);
+  const submitLock = useRef(false);
 
   const refresh = useCallback(async (preserveDraft = false) => {
     const [detail, taskList, outputs] = await Promise.all([
@@ -119,7 +121,7 @@ export function VoiceDesignWorkbench(props: Props) {
     if (event.type === "task.updated") {
       const task = event.payload as TaskRecord;
       if (task.project_id !== projectId || task.module !== "voice_design") return;
-      setTasks((current) => [task, ...current.filter((item) => item.id !== task.id)].sort((a, b) => b.created_at.localeCompare(a.created_at)));
+      setTasks((current) => upsertTask(current, task));
       if (task.status === "completed") void refresh(true);
     }
     if (event.type === "task.removed") {
@@ -169,14 +171,16 @@ export function VoiceDesignWorkbench(props: Props) {
 
   async function generate() {
     if (!project || !draft || !module?.installed) return;
+    if (submitLock.current) return;
+    submitLock.current = true;
     try {
       if (dirty.current) {
         await queueSave(draft, editVersion.current);
       }
       const task = await api.createModuleTask(project.id, "voice_design", draft);
-      setTasks((current) => [task, ...current]);
+      setTasks((current) => upsertTask(current, task));
       props.onMessage("音色设计任务已加入全局队列。", "success");
-    } catch (error) { props.onMessage(error instanceof Error ? error.message : "无法创建音色设计任务", "error"); }
+    } catch (error) { props.onMessage(error instanceof Error ? error.message : "无法创建音色设计任务", "error"); } finally { submitLock.current = false; }
   }
 
   async function closeProject() {
