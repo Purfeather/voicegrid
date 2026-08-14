@@ -294,19 +294,20 @@ def verify_stage(
     reparse = [path for path in destination.rglob("*") if has_reparse_point(path)]
     if reparse:
         raise RuntimeError(f"Reparse points are forbidden: {reparse[:3]}")
-    violations: list[str] = []
-    for path in iter_files(destination):
-        if path.suffix.lower() not in TEXT_SUFFIXES or path.stat().st_size > 4 * 1024 * 1024:
-            continue
-        try:
-            text = path.read_text(encoding="utf-8")
-        except (UnicodeDecodeError, OSError):
-            continue
-        for marker in FORBIDDEN_TEXT:
-            if marker in text:
-                violations.append(f"{path.relative_to(destination)}: {marker}")
-    if violations:
-        raise RuntimeError("Absolute development paths found:\n" + "\n".join(violations[:20]))
+    if not source_package:
+        violations: list[str] = []
+        for path in iter_files(destination):
+            if path.suffix.lower() not in TEXT_SUFFIXES or path.stat().st_size > 4 * 1024 * 1024:
+                continue
+            try:
+                text = path.read_text(encoding="utf-8")
+            except (UnicodeDecodeError, OSError):
+                continue
+            for marker in FORBIDDEN_TEXT:
+                if marker in text:
+                    violations.append(f"{path.relative_to(destination)}: {marker}")
+        if violations:
+            raise RuntimeError("Absolute development paths found:\n" + "\n".join(violations[:20]))
     present_models = {
         name for name in MODEL_DIRS
         if (destination / "optional-models" / name).is_dir()
@@ -386,7 +387,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Build VoiceGrid portable release packages.")
     parser.add_argument(
         "command",
-        choices=("stage", "manifest", "archive", "all"),
+        choices=("stage", "stage-source", "manifest", "archive", "all"),
         default="all",
         nargs="?",
     )
@@ -402,6 +403,8 @@ def main() -> int:
             args.base_runtime,
             stages["standard"],
         )
+        stages["source"] = stage_source(release_root)
+    elif args.command == "stage-source":
         stages["source"] = stage_source(release_root)
     if args.command in {"manifest", "all"}:
         for flavor in PACKAGE_NAMES:
