@@ -5,7 +5,7 @@
 1. 运行项目根目录的 quality-check.bat。
 2. 运行 .venv\Scripts\python.exe desktop\launcher\build_launcher.py。
 3. 运行 powershell -ExecutionPolicy Bypass -File release\sign_release.ps1。
-4. 运行 powershell -ExecutionPolicy Bypass -File release\install_7zip_tool.ps1。
+4. 运行 .venv\Scripts\python.exe release\install_7zip_tool.py。
 5. 运行 .venv\Scripts\python.exe release\build_release.py all。
 6. 从 D:\VoiceGrid-Release\artifacts 解压三套产物进行最终回归。
 
