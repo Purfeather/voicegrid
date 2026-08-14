@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import fnmatch
 import hashlib
 import json
 import os
@@ -50,6 +51,48 @@ FORBIDDEN_TEXT = (
 )
 
 
+def _load_release_exclusions() -> dict[str, list[str]]:
+    path = ROOT / "release-exclusions.txt"
+    sections: dict[str, list[str]] = {"all": []}
+    current = "all"
+    for raw in path.read_text(encoding="utf-8").splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        if line.startswith("[") and line.endswith("]"):
+            current = line[1:-1].strip().lower()
+            sections.setdefault(current, [])
+            continue
+        sections.setdefault(current, []).append(line)
+    return sections
+
+
+RELEASE_EXCLUSIONS = _load_release_exclusions()
+
+
+def _is_release_excluded(relative: Path, flavor: str) -> bool:
+    posix = relative.as_posix()
+    rules = RELEASE_EXCLUSIONS.get("all", []) + RELEASE_EXCLUSIONS.get(flavor, [])
+    for rule in rules:
+        if fnmatch.fnmatch(posix, rule) or fnmatch.fnmatch(relative.name, rule):
+            return True
+        if "/" in rule and (posix == rule or posix.startswith(rule.rstrip("/") + "/")):
+            return True
+        if "/" not in rule and any(fnmatch.fnmatch(part, rule) for part in relative.parts):
+            return True
+    return False
+
+
+def prune_release_stage(destination: Path, flavor: str) -> None:
+    for path in sorted(destination.rglob("*"), key=lambda item: len(item.parts), reverse=True):
+        relative = path.relative_to(destination)
+        if not _is_release_excluded(relative, flavor):
+            continue
+        if path.is_dir():
+            shutil.rmtree(path)
+        elif path.exists():
+            path.unlink()
+
 def run(command: list[str], cwd: Path = ROOT) -> None:
     print("+", subprocess.list2cmdline(command), flush=True)
     subprocess.run(command, cwd=cwd, check=True)
@@ -90,7 +133,7 @@ def copytree(source: Path, destination: Path) -> None:
 def copy_binary_application(destination: Path) -> None:
     for filename in (
         "LICENSE", "README.md", "build.json", "config.json", "requirements.txt",
-        "VoiceGrid 声格.exe", "启动测试版.bat", "使用说明.txt", "更新日志.log",
+        "VoiceGrid 声格.exe", "备用启动.bat", "使用说明.txt", "更新日志.log",
     ):
         shutil.copy2(ROOT / filename, destination / filename)
     copytree(ROOT / "LICENSES", destination / "LICENSES")
@@ -164,8 +207,9 @@ def stage_standard(release_root: Path, base_runtime: Path) -> Path:
         "import torch,torchaudio,transformers,modelscope,fastapi,pydantic,"
         "uvicorn,webview,soundfile,pystray,PIL",
     )
+    prune_release_stage(destination, "standard")
     write_package_metadata(destination, "standard")
-    verify_stage(destination, expect_models=False)
+    verify_stage(destination, expect_models=False, flavor="standard")
     return destination
 
 
@@ -201,8 +245,9 @@ def stage_offline(release_root: Path, base_runtime: Path, standard: Path) -> Pat
         "import torch,torchaudio,torchvision,transformers,modelscope_hub,"
         "soundfile,diffusers,audiotools,moss_soundeffect_v2",
     )
+    prune_release_stage(destination, "offline")
     write_package_metadata(destination, "offline")
-    verify_stage(destination, expect_models=True)
+    verify_stage(destination, expect_models=True, flavor="offline")
     return destination
 
 
@@ -228,7 +273,7 @@ def source_files() -> list[Path]:
             continue
         relative = Path(raw.decode("utf-8"))
         posix = relative.as_posix()
-        if posix == "VoiceGrid 声格.exe" or posix.startswith("desktop/frontend/dist/"):
+        if posix == "VoiceGrid 声格.exe" or posix.startswith("desktop/frontend/dist/") or _is_release_excluded(relative, "source"):
             continue
         paths.append(relative)
     return paths
@@ -246,8 +291,9 @@ def stage_source(release_root: Path) -> Path:
         target = destination / relative
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(source, target)
+    prune_release_stage(destination, "source")
     write_package_metadata(destination, "source")
-    verify_stage(destination, expect_models=False, source_package=True)
+    verify_stage(destination, expect_models=False, source_package=True, flavor="source")
     return destination
 
 
@@ -280,7 +326,12 @@ def verify_stage(
     destination: Path,
     expect_models: bool,
     source_package: bool = False,
+    flavor: str | None = None,
 ) -> None:
+    if flavor is not None:
+        violations = [path.relative_to(destination).as_posix() for path in iter_files(destination) if _is_release_excluded(path.relative_to(destination), flavor)]
+        if violations:
+            raise RuntimeError(f"Release exclusions leaked into {flavor}: {violations[:20]}")
     if not (destination / "LICENSE").is_file():
         raise RuntimeError(f"MIT license is missing from {destination}")
     if not source_package:

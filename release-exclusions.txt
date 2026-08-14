@@ -1,0 +1,46 @@
+# VoiceGrid release exclusion rules.
+# A rule without a slash matches any path component or filename.
+# A rule with a slash matches the relative path or its descendants.
+
+[all]
+.git
+node_modules
+__pycache__
+*.pyc
+*.pyo
+.pytest_cache
+.mypy_cache
+.ruff_cache
+*.tmp
+*.temp
+*.bak
+data
+startup-lab
+
+[standard]
+optional-models
+runtimes
+tests
+desktop/tests
+design-system
+promo
+website
+启动测试版.bat
+
+[offline]
+tests
+desktop/tests
+design-system
+promo
+website
+启动测试版.bat
+
+[source]
+optional-models
+runtimes
+tests
+desktop/tests
+design-system
+promo
+website
+启动测试版.bat

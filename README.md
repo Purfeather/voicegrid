@@ -12,7 +12,7 @@ MOSS 模型权重、Python 运行环境及其他第三方组件不自动适用 M
 
 ## 启动
 
-双击根目录的 `VoiceGrid 声格.exe`。程序会先显示可响应的产品启动页，再进入项目中心；正常启动不会预加载模型或占用额外显存。桌面快捷方式应指向根目录中的 EXE，不要单独复制 EXE。`启动测试版.bat` 继续保留为兼容和排障入口。关闭主窗口只会隐藏到系统托盘；再次双击启动器会唤醒现有窗口。只有右键托盘图标并选择“退出”才会结束后台服务和模型进程。
+双击根目录的 `VoiceGrid 声格.exe`。程序会先显示可响应的产品启动页，再进入项目中心；正常启动不会预加载模型或占用额外显存。桌面快捷方式应指向根目录中的 EXE，不要单独复制 EXE。`备用启动.bat` 继续保留为兼容和排障入口。关闭主窗口只会隐藏到系统托盘；再次双击启动器会唤醒现有窗口。只有右键托盘图标并选择“退出”才会结束后台服务和模型进程。
 
 若准备时间超过 5 秒，启动页会显示真实阶段及“继续等待、重试、打开日志、退出”。内部回滚入口为 `internal-rollback-legacy.bat`，仅用于开发排障。
 
@@ -46,6 +46,7 @@ MOSS 模型权重、Python 运行环境及其他第三方组件不自动适用 M
 ## 开发与验证
 
 - 前端构建：在 `desktop/frontend` 中运行 `npm.cmd run build`
+- 介绍官网：在 `website` 中运行 `npm.cmd install`、`npm.cmd test` 与 `npm.cmd run build`
 - 完整质量检查：运行根目录 `quality-check.bat`，依次验证编码、后端、前端、API 类型、设计令牌、构建产物与 Git 差异
 - 前端测试：在 `desktop/frontend` 中运行 `npm.cmd test -- --run`
 - 后端测试：运行 `.venv\Scripts\python.exe -m unittest discover -s desktop\tests -v`
