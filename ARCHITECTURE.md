@@ -1,4 +1,4 @@
-# 声格 VoiceGrid 2.0 架构说明
+# 声格 VoiceGrid 1.0 架构说明
 
 ## 进程结构
 
@@ -72,4 +72,4 @@ MOSS-VoiceGenerator 与 MOSS-SoundEffect v2 各自拥有 Python 3.12 环境，�
 - Python/TypeScript/JSON/CSS/HTML/Markdown/TXT/LOG：无 BOM UTF-8
 - 自动化命令行不直接传中文值，改用 ASCII Unicode 转义
 - 正式 1.0、模型连接目标和模型权重只读
-- 当前版本为 `2.0.0-dev`，不包含正式分发构建；`v1.0.0-beta.1` 保留为单模块冻结基线
+- 当前发布版本为 `1.0.0`；`v1.0.0-beta.1` 保留为早期单模块冻结基线

@@ -37,7 +37,7 @@ def main() -> int:
     staging = destination.parent / f".{destination.name}.partial"
     url = f"https://codeload.github.com/{args.repository}/zip/{args.revision}"
 
-    request = urllib.request.Request(url, headers={"User-Agent": "VoiceGrid/2.0 source installer"})
+    request = urllib.request.Request(url, headers={"User-Agent": "VoiceGrid/1.0 source installer"})
     with urllib.request.urlopen(request, timeout=120) as response, archive.open("wb") as target:
         total = int(response.headers.get("Content-Length") or 0)
         downloaded = 0

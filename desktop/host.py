@@ -1,6 +1,6 @@
 """Compatibility entry point for ``python -m desktop.host``.
 
-VoiceGrid 2.0 uses the accent asset ``voicegrid-icon-accent``. The native
+VoiceGrid uses the accent asset ``voicegrid-icon-accent``. The native
 implementation lives in :mod:`desktop.native.host`.
 """
 

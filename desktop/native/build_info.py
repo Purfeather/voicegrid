@@ -39,6 +39,6 @@ def _read_manifest() -> dict[str, Any]:
 _manifest = _read_manifest()
 BUILD_INFO = BuildInfo(
     product=str(_manifest.get("product") or "声格 VoiceGrid"),
-    version=str(_manifest.get("version") or "2.0.0-dev"),
-    build_id=str(_manifest.get("build_id") or "development"),
+    version=str(_manifest.get("version") or "1.0.0"),
+    build_id=str(_manifest.get("build_id") or "VOICEGRID-1.0.0"),
 )

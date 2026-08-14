@@ -96,7 +96,7 @@ def _read_project(path: Path) -> dict[str, Any]:
     schema_version = int(payload.get("schema_version", 0))
     if schema_version != PROJECT_SCHEMA_VERSION:
         raise ValueError(
-            f"项目格式版本 {schema_version} 不受支持；当前程序仅支持 VoiceGrid 2.0 项目格式 {PROJECT_SCHEMA_VERSION}。"
+            f"项目格式版本 {schema_version} 不受支持；当前程序仅支持 VoiceGrid 1.0 项目格式 {PROJECT_SCHEMA_VERSION}。"
         )
     payload["workspaces"] = ProjectWorkspaces.model_validate(payload.get("workspaces") or {}).model_dump(mode="json")
     return payload

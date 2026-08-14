@@ -1,6 +1,6 @@
-# 声格 VoiceGrid 2.0（开发测试版）
+# 声格 VoiceGrid 1.0
 
-声格 VoiceGrid 是一套本地桌面音频工作站。界面使用 React + TypeScript，后端使用 FastAPI + SQLite，桌面窗口由 PyWebView2 承载。当前多模块开发版本为 `2.0.0-dev`；上一个可回退冻结点为 `v1.0.0-beta.1`。
+声格 VoiceGrid 是一套本地桌面音频工作站。界面使用 React + TypeScript，后端使用 FastAPI + SQLite，桌面窗口由 PyWebView2 承载。当前正式版本为 `1.0.0`。
 
 运行期可写内容统一保存在 `data` 目录；根目录的 `optional-models` 与 `runtimes` 只保存可选模型和隔离运行环境，`models` 继续作为只读模型连接。
 
@@ -18,7 +18,7 @@
 - 兼容：90 字、20 秒
 - 完全离线加载；CUDA 上按设备能力使用 BF16/FP16、SDPA，并让生成模型与 Audio Tokenizer 分阶段进入显存
 
-## 2.0 多模块预览
+## 三模块工作台
 
 - 语音合成：保留现有 MOSS-TTS 1.5 4B 完整工作流。
 - 音色设计：MOSS-VoiceGenerator 与 MOSS-Audio-Tokenizer 独立安装；支持八类提示词模块组合、自由描述、最终提示词显式应用、项目历史与“保存为音色”。

@@ -1,4 +1,4 @@
-"""Compatibility entry point for the VoiceGrid 2.0 accent splash host.
+"""Compatibility entry point for the VoiceGrid accent splash host.
 
 Asset: ``voicegrid-icon-accent``.
 """

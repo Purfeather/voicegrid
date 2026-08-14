@@ -68,7 +68,7 @@ class RepositoryTests(unittest.TestCase):
                     payload["workspace"]["natural_speed"] = 1.15
                     project_file.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
                     before = project_file.read_bytes()
-                    with self.assertRaisesRegex(ValueError, "仅支持 VoiceGrid 2.0"):
+                    with self.assertRaisesRegex(ValueError, "仅支持 VoiceGrid 1.0"):
                         repository.get_project(created["id"])
                     self.assertEqual(project_file.read_bytes(), before)
             finally:
