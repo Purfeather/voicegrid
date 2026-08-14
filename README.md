@@ -2,6 +2,12 @@
 
 声格 VoiceGrid 是一套本地桌面音频工作站。界面使用 React + TypeScript，后端使用 FastAPI + SQLite，桌面窗口由 PyWebView2 承载。当前正式版本为 `1.0.0`。
 
+## 开源许可
+
+VoiceGrid 自有代码以 [MIT License](LICENSE) 开源，允许使用、修改、商用和再分发，但必须保留版权与许可文本。“声格 VoiceGrid”名称和 Logo 不随 MIT 许可证授权；修改版不得冒充官方发行版或暗示获得官方认可，具体见 `LICENSES/VoiceGrid-商标与官方发行说明.txt`。
+
+MOSS 模型权重、Python 运行环境及其他第三方组件不自动适用 MIT，须分别遵守其上游许可证。用户生成的音频也不会因为软件采用 MIT 而自动成为开源内容。
+
 运行期可写内容统一保存在 `data` 目录；根目录的 `optional-models` 与 `runtimes` 只保存可选模型和隔离运行环境，`models` 继续作为只读模型连接。
 
 ## 启动
@@ -24,7 +30,7 @@
 - 音色设计：MOSS-VoiceGenerator 与 MOSS-Audio-Tokenizer 独立安装；支持八类提示词模块组合、自由描述、最终提示词显式应用、项目历史与“保存为音色”。
 - 音效生成：MOSS-SoundEffect v2.0 页面和可选安装入口已分离；真实推理按阶段验收，当前未安装时仍可完整预览。
 
-可选模块不会在启动或切换页签时下载、导入或占用显存。用户确认后才会从 ModelScope 下载固定清单，并安装到 `optional-models` 与 `runtimes`；这两个目录不进入 Git 或便携包。测试版的 `models` 是指向正式模型库的只读连接，因此可选权重刻意使用独立目录，避免修改正式版。模型运行于独立隐藏进程，三个模块共享同一条串行 GPU 任务队列。
+可选模块不会在启动或切换页签时下载、导入或占用显存。用户确认后才会从 ModelScope 下载固定清单，并安装到 `optional-models` 与 `runtimes`；这两个目录不进入 Git，也不进入标准便携版，但会按各自上游许可证纳入完整离线版。测试版的 `models` 是指向正式模型库的只读连接，因此发布构建不会跟随或修改该连接。模型运行于独立隐藏进程，三个模块共享同一条串行 GPU 任务队列。
 
 ## 数据位置
 
@@ -45,5 +51,9 @@
 - 后端测试：运行 `.venv\Scripts\python.exe -m unittest discover -s desktop\tests -v`
 - 启动快速回归：运行 `.venv\Scripts\python.exe startup-lab\run_startup_lab.py --suite quick`
 - 启动完整验收：运行 `.venv\Scripts\python.exe startup-lab\run_startup_lab.py --suite acceptance`
+
+从源码构建前端时，在 `desktop/frontend` 执行 `npm.cmd ci` 与 `npm.cmd run build`。后端使用 Python 3.12，并按 `requirements.txt` 安装依赖。发布构建使用 `release/build_release.py` 生成标准版、完整离线版和源代码包。
+
+欢迎通过正式源代码仓库提交问题与改进。贡献内容在提交时应确保有权按项目的 MIT License 提供。
 
 正式 1.0 目录和 `models` 连接目标只读，禁止在其中新增、修改或删除开发文件。详细架构见 `ARCHITECTURE.md`，界面规范见 `design-system/voicegrid/MASTER.md`。
