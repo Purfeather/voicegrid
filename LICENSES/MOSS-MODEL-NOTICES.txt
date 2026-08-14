@@ -1,0 +1,37 @@
+MOSS / OpenMOSS 模型与推理代码声明
+==================================
+
+以下模型和上游推理代码不是 VoiceGrid 自有代码，不适用 VoiceGrid 的 MIT
+许可证。当前随完整离线版分发或由用户明确触发后从 ModelScope 下载的版本，
+其模型卡均声明为 Apache License 2.0：
+
+- openmoss/MOSS-TTS-Local-Transformer-v1.5
+  revision: master
+  manifest: 2ec85506d2450ce65beb83164ecedc3cf81fb38bbdedf3c0a5e35c0b49cf5063
+- openmoss/MOSS-Audio-Tokenizer-v2
+  revision: master
+  manifest: 84fd35a7f8bc745b6c4832d7d7f2d221756ff261c6f6a860d8f40a086a7f48ba
+- openmoss/MOSS-VoiceGenerator
+  revision: master
+  manifest: 298fbb371515291742daa6e537e5833cd3c7b5eb3a3e09b16aaaeaac0577f318
+- openmoss/MOSS-Audio-Tokenizer
+  revision: master
+  manifest: c20df5cbcba8b90d599a5389936ce98d7fcdb9d86556e724b191733f9f6211ac
+- openmoss/MOSS-SoundEffect-v2.0
+  revision: master
+  manifest: b50a3034b1abae0bfcc7435e079e5c03705b1a61ee17f22aaae1941126c7daf7
+- OpenMOSS/MOSS-TTS 中的 moss_soundeffect_v2 推理源码
+  upstream revision: 58b20a0d5fcc6766658d50967a90a9d890009a46
+
+模型来源：
+https://modelscope.cn/models/openmoss
+
+上游项目：
+https://github.com/OpenMOSS/MOSS-TTS
+
+Apache License 2.0 原文保存在 MOSS-APACHE-2.0.txt；模型目录中已有的 LICENSE、
+README、模型卡和上游 NOTICE 在完整离线版中原样保留。用户在线安装时应同时
+核对 ModelScope 当前展示的许可证与使用要求。
+
+模型生成结果的权利状态取决于输入素材、适用法律、上游模型条款和实际使用
+场景，不因 VoiceGrid 代码采用 MIT 而自动获得任何额外授权。
