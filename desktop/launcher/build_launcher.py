@@ -103,6 +103,13 @@ def build_launcher() -> Path:
         if not candidate.is_file() or candidate.stat().st_size > 512 * 1024:
             raise RuntimeError("Launcher output is missing or exceeds the 512 KiB size budget.")
         os.replace(candidate, OUTPUT_PATH)
+        if os.name == "nt":
+            subprocess.run(
+                ["icacls", str(OUTPUT_PATH), "/inheritance:e"],
+                cwd=ROOT,
+                check=True,
+                capture_output=True,
+            )
     return OUTPUT_PATH
 
 

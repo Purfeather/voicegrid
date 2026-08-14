@@ -12,6 +12,7 @@ from typing import Any, Callable
 from app.model_engine import TaskCancelled
 
 from .diagnostics import append_diagnostic_log
+from .module_integrity import runtime_python
 from .paths import (
     ROOT,
     SOUND_EFFECT_MODEL_DIR,
@@ -65,7 +66,7 @@ class WorkerManager:
                 continue
 
     def _start_voice_design(self) -> None:
-        python = VOICE_GENERATOR_RUNTIME_DIR / "Scripts" / "python.exe"
+        python = runtime_python(VOICE_GENERATOR_RUNTIME_DIR)
         if not python.is_file():
             raise FileNotFoundError("音色设计运行环境尚未安装。")
         if not VOICE_GENERATOR_MODEL_DIR.is_dir() or not VOICE_GENERATOR_CODEC_DIR.is_dir():
@@ -126,7 +127,7 @@ class WorkerManager:
             raise
 
     def _start_sound_effect(self) -> None:
-        python = SOUND_EFFECT_RUNTIME_DIR / "Scripts" / "python.exe"
+        python = runtime_python(SOUND_EFFECT_RUNTIME_DIR)
         if not python.is_file():
             raise FileNotFoundError("音效生成 Python 3.12 独立运行环境尚未安装。")
         if not SOUND_EFFECT_MODEL_DIR.is_dir():

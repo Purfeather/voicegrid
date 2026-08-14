@@ -1,7 +1,8 @@
 @echo off
 setlocal
 set "APP_ROOT=%~dp0"
-set "PYTHONW=%APP_ROOT%.venv\Scripts\pythonw.exe"
+set "PYTHONW=%APP_ROOT%runtime\pythonw.exe"
+if not exist "%PYTHONW%" set "PYTHONW=%APP_ROOT%.venv\Scripts\pythonw.exe"
 cd /d "%APP_ROOT%"
 
 if not exist "%PYTHONW%" goto missing_runtime
@@ -12,7 +13,7 @@ if errorlevel 1 goto launch_failed
 exit /b 0
 
 :missing_runtime
-echo [ERROR] Test runtime is missing.
+echo [ERROR] VoiceGrid runtime is missing.
 goto failed
 
 :missing_frontend

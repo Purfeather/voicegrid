@@ -38,12 +38,17 @@ class IdentityBoundaryTests(unittest.TestCase):
     def test_splash_identity_values_exist_only_in_identity_config(self) -> None:
         identity = json.loads(IDENTITY_PATH.read_text(encoding="utf-8"))
         protected_values = tuple(str(identity[key]) for key in ("organization", "author"))
+        author_license_exceptions = {
+            ROOT / "LICENSE",
+            ROOT / "LICENSES" / "VoiceGrid-开源许可说明.txt",
+        }
         violations: list[str] = []
         for path in tracked_files():
             if path == IDENTITY_PATH or path.suffix.lower() not in TEXT_SUFFIXES or not path.is_file():
                 continue
             content = path.read_text(encoding="utf-8")
-            if any(value in content for value in protected_values):
+            organization, author = protected_values
+            if organization in content or (author in content and path not in author_license_exceptions):
                 violations.append(path.relative_to(ROOT).as_posix())
         self.assertEqual(violations, [])
 

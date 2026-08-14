@@ -27,7 +27,8 @@ LogCallback = Callable[[str, str], None]
 
 
 def runtime_python(runtime: Path) -> Path:
-    return runtime / "Scripts" / "python.exe"
+    portable = runtime / "python.exe"
+    return portable if portable.is_file() else runtime / "Scripts" / "python.exe"
 
 
 def requirements_sha256(path: Path) -> str:

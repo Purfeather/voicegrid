@@ -33,7 +33,7 @@ internal static class VoiceGridLauncher
                 return 0;
             }
 
-            string pythonw = Path.Combine(root, ".venv", "Scripts", "pythonw.exe");
+            string pythonw = ResolvePythonw(root);
             ProcessStartInfo startInfo = new ProcessStartInfo
             {
                 FileName = pythonw,
@@ -61,11 +61,15 @@ internal static class VoiceGridLauncher
     {
         string[] relativePaths =
         {
-            Path.Combine(".venv", "Scripts", "pythonw.exe"),
             Path.Combine("desktop", "host.py"),
             Path.Combine("desktop", "frontend", "dist", "index.html")
         };
         List<string> missing = new List<string>();
+        if (!File.Exists(Path.Combine(root, "runtime", "pythonw.exe"))
+            && !File.Exists(Path.Combine(root, ".venv", "Scripts", "pythonw.exe")))
+        {
+            missing.Add(Path.Combine("runtime", "pythonw.exe"));
+        }
         foreach (string relativePath in relativePaths)
         {
             if (!File.Exists(Path.Combine(root, relativePath)))
@@ -74,6 +78,12 @@ internal static class VoiceGridLauncher
             }
         }
         return missing;
+    }
+
+    private static string ResolvePythonw(string root)
+    {
+        string portable = Path.Combine(root, "runtime", "pythonw.exe");
+        return File.Exists(portable) ? portable : Path.Combine(root, ".venv", "Scripts", "pythonw.exe");
     }
 
     private static int Fail(string root, int exitCode, string logDetail, string userMessage)
