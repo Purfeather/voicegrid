@@ -124,6 +124,10 @@ class IconAndLauncherConsistencyTests(unittest.TestCase):
         ):
             self.assertIn(fragment, external)
 
+    def test_titlebar_mark_uses_crisp_half_scale(self) -> None:
+        source = (ROOT / "desktop" / "frontend" / "src" / "components" / "TitleBar.module.css").read_text(encoding="utf-8")
+        self.assertIn(".productMark { width: 32px; height: 32px;", source)
+
     def test_launcher_metadata_is_product_only(self) -> None:
         executable = ROOT / "VoiceGrid 声格.exe"
         script = (
