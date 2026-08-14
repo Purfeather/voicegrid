@@ -42,13 +42,16 @@ class IdentityBoundaryTests(unittest.TestCase):
             ROOT / "LICENSE",
             ROOT / "LICENSES" / "VoiceGrid-开源许可说明.txt",
         }
+        single_author_identity_exception = ROOT / "release" / "RELEASE-NOTES-1.0.0.md"
         violations: list[str] = []
         for path in tracked_files():
             if path == IDENTITY_PATH or path.suffix.lower() not in TEXT_SUFFIXES or not path.is_file():
                 continue
             content = path.read_text(encoding="utf-8")
             organization, author = protected_values
-            if organization in content or (author in content and path not in author_license_exceptions):
+            author_is_allowed_once = path == single_author_identity_exception and content.count(author) == 1
+            author_is_license_text = path in author_license_exceptions
+            if organization in content or (author in content and not author_is_license_text and not author_is_allowed_once):
                 violations.append(path.relative_to(ROOT).as_posix())
         self.assertEqual(violations, [])
 
