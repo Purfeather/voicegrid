@@ -10,7 +10,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[2]
-LAUNCHER = ROOT / "\u58f0\u683c VoiceGrid.exe"
+LAUNCHER = ROOT / "VoiceGrid \u58f0\u683c.exe"
 
 
 class LauncherTests(unittest.TestCase):

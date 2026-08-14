@@ -101,19 +101,31 @@ class IconAndLauncherConsistencyTests(unittest.TestCase):
                 self.assertEqual(icon.convert("RGBA").tobytes(), module.render_system(size).tobytes())
 
     def test_svg_and_react_marks_share_the_master_geometry(self) -> None:
-        paths = (
+        application_paths = (
             ROOT / "desktop" / "assets" / "voicegrid-icon.svg",
-            ROOT / "desktop" / "assets" / "voicegrid-icon-accent.svg",
             ROOT / "desktop" / "frontend" / "src" / "components" / "VoiceGridMark.tsx",
         )
-        geometry = ('x="5" y="5" width="54" height="54" rx="13"', 'd="M15 29v6m8-11v16m8-23v30m8-24v18m8-13v8"', 'x="45" y="15" width="6" height="6"', 'x="49" y="23" width="5" height="5"')
-        for path in paths:
+        application_geometry = (
+            'x="4" y="4" width="56" height="56" rx="14"',
+            'd="M14 30v4m8-10v16m8-23v30m8-25v20m8-14v8"',
+            'x="44" y="14" width="6" height="6"',
+            'x="50" y="22" width="4" height="4"',
+        )
+        for path in application_paths:
             source = path.read_text(encoding="utf-8")
-            for fragment in geometry:
+            for fragment in application_geometry:
                 self.assertIn(fragment, source, path.name)
 
+        external = (ROOT / "desktop" / "assets" / "voicegrid-icon-accent.svg").read_text(encoding="utf-8")
+        for fragment in (
+            'x="0" y="0" width="64" height="64" rx="14"',
+            'x="4" y="4" width="56" height="56" rx="10"',
+            *application_geometry[1:],
+        ):
+            self.assertIn(fragment, external)
+
     def test_launcher_metadata_is_product_only(self) -> None:
-        executable = ROOT / "声格 VoiceGrid.exe"
+        executable = ROOT / "VoiceGrid 声格.exe"
         script = (
             "$v=(Get-Item -LiteralPath $env:VOICEGRID_EXE_PATH).VersionInfo;"
             "[pscustomobject]@{ProductName=$v.ProductName;FileDescription=$v.FileDescription;"
