@@ -18,6 +18,7 @@ import type {
   VoiceDesignDraft,
   WorkspaceDraft,
 } from "../types";
+import { ApiError } from "./errors";
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const response = await fetch(`/api/v2${path}`, {
@@ -28,14 +29,14 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     },
   });
   if (!response.ok) {
-    let message = `请求失败（${response.status}）`;
+    let detail: unknown = null;
     try {
       const payload = await response.json();
-      message = payload.detail || message;
+      detail = payload?.detail ?? payload;
     } catch {
       // Keep the HTTP fallback.
     }
-    throw new Error(message);
+    throw new ApiError(response.status, detail, `请求失败（${response.status}）`);
   }
   if (response.status === 204) return undefined as T;
   return response.json() as Promise<T>;

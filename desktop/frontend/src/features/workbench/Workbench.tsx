@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import type { AppEvent, HardwareMetrics, ModuleDescriptor, ProjectDetail, RuntimeSnapshot, StylePreset, TaskRecord, ThemeId, VoiceAsset, WorkspaceDraft } from "../../types";
+import type { HardwareMetrics, ModuleDescriptor, ProjectDetail, RuntimeSnapshot, StylePreset, TaskRecord, ThemeId, VoiceAsset, WorkspaceDraft } from "../../types";
 import { api } from "../../services/api";
-import { upsertTask } from "../../utils/taskList";
+import { mergeTaskList, upsertTask } from "../../utils/taskList";
 import { registerExitSaveHandler } from "../../services/exitCoordinator";
 import { TitleBar } from "../../components/TitleBar";
 import { EmptyState } from "../../components/UI";
@@ -14,6 +14,7 @@ import styles from "./workbench.module.css";
 import { ModuleTabs } from "../modules/ModuleTabs";
 import { ModuleInstallPanel } from "../modules/ModuleInstallPanel";
 import { ModuleWorkbenchShell } from "../modules/ModuleWorkbenchShell";
+import { useTaskActivitySync } from "../../hooks/useTaskActivitySync";
 
 interface Props {
   voices: VoiceAsset[];
@@ -21,7 +22,7 @@ interface Props {
   languages: Array<{ value: string; label: string }>;
   runtime: RuntimeSnapshot;
   metrics: HardwareMetrics;
-  event: AppEvent | null;
+
   theme: ThemeId;
   onTheme: (theme: ThemeId) => void;
   onRefreshResources: () => Promise<void>;
@@ -52,7 +53,7 @@ export function Workbench(props: Props) {
     revision.current = Math.max(revision.current, detail.revision);
     setProject(detail);
     if (!preserveWorkspace || !dirty.current) setWorkspace(detail.workspace);
-    setTasks(taskList);
+    setTasks((current) => mergeTaskList(current, taskList, projectId, "speech"));
     if (!preserveWorkspace || !dirty.current) {
       dirty.current = false;
       editVersion.current = 0;
@@ -82,21 +83,6 @@ export function Workbench(props: Props) {
   useEffect(() => {
     refreshProject().catch((error) => setLoadError(error instanceof Error ? error.message : "项目载入失败"));
   }, [refreshProject]);
-
-  useEffect(() => {
-    const event = props.event;
-    if (!event) return;
-    if (event.type === "task.updated") {
-      const task = event.payload as TaskRecord;
-      if (task.project_id !== projectId || task.module !== "speech") return;
-      setTasks((current) => upsertTask(current, task));
-      if (task.status === "completed") refreshProject(true).catch(() => undefined);
-    }
-    if (event.type === "task.removed") {
-      const removed = event.payload as { id: string; project_id: string; module?: string };
-      if (removed.project_id === projectId && (!removed.module || removed.module === "speech")) setTasks((current) => current.filter((task) => task.id !== removed.id));
-    }
-  }, [projectId, props.event, refreshProject]);
 
   useEffect(() => {
     if (!dirty.current || !workspace || !project) return;
@@ -165,6 +151,13 @@ export function Workbench(props: Props) {
     }
   }
 
+  useTaskActivitySync({
+    projectId,
+    module: "speech",
+    tasks,
+    setTasks,
+    reconcile: () => refreshProject(true),
+  });
   if (loadError) return <><TitleBar runtime={props.runtime} metrics={props.metrics} theme={props.theme} onTheme={props.onTheme} onBack={() => navigate("/projects")} onRelease={async () => props.onRuntime(await api.releaseRuntime())} /><ModuleTabs modules={props.modules} /><main id="main-content" className={styles.workbench}><EmptyState title="项目无法打开" detail={loadError} /></main></>;
   if (!project || !workspace) return <><TitleBar runtime={props.runtime} metrics={props.metrics} theme={props.theme} onTheme={props.onTheme} onBack={() => navigate("/projects")} onRelease={async () => props.onRuntime(await api.releaseRuntime())} /><ModuleTabs modules={props.modules} /><main id="main-content" className={styles.workbench}><EmptyState title="正在准备工作台" detail="正在读取项目、音色和运行环境…" /></main></>;
 
@@ -202,6 +195,7 @@ export function Workbench(props: Props) {
             try { await api.openProjectOutputFolder(project.id, "speech"); }
             catch (error) { props.onMessage(error instanceof Error ? error.message : "无法打开当前输出目录。", "error"); }
           }}
+          onMessage={props.onMessage}
           onReuse={(snapshot) => {
             const styleExists = props.stylesList.some((style) => style.name === snapshot.style);
             const reference = snapshot.reference_audio;

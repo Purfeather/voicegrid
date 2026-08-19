@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Save, Square, WandSparkles } from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
-import type { AppEvent, HardwareMetrics, ModuleDescriptor, OutputRecord, ProjectDetail, RuntimeSnapshot, TaskRecord, ThemeId, VoiceAsset, VoiceDesignDraft, VoicePromptComposer } from "../../types";
+import type { HardwareMetrics, ModuleDescriptor, OutputRecord, ProjectDetail, RuntimeSnapshot, TaskRecord, ThemeId, VoiceAsset, VoiceDesignDraft, VoicePromptComposer } from "../../types";
 import { api } from "../../services/api";
-import { upsertTask } from "../../utils/taskList";
+import { mergeTaskList, upsertTask } from "../../utils/taskList";
 import { registerExitSaveHandler } from "../../services/exitCoordinator";
 import { TitleBar } from "../../components/TitleBar";
 import { Badge, Button, EmptyState, Field, IconButton, Modal, Progress, Section, Select, TextArea, TextInput } from "../../components/UI";
@@ -13,13 +13,14 @@ import { OptionalModuleColumn, OptionalModuleWorkbench } from "../modules/Option
 import { ModuleActivityActions, ModuleActivityOutputRow, ModuleActivityTaskRow, ModuleActivityTimeline, ModuleCurrentOutput, ModuleGenerateButton, ModuleGenerateCard, ModuleOutputPlayer, ModuleParameterRail } from "../modules/ModuleWorkbenchShell";
 import { VoiceAssetLibrary } from "../modules/VoiceAssetLibrary";
 import styles from "./voiceDesign.module.css";
+import { useTaskActivitySync } from "../../hooks/useTaskActivitySync";
 
 interface Props {
   modules: ModuleDescriptor[];
   voices: VoiceAsset[];
   runtime: RuntimeSnapshot;
   metrics: HardwareMetrics;
-  event: AppEvent | null;
+
   theme: ThemeId;
   onTheme: (theme: ThemeId) => void;
   onModulesChanged: () => Promise<void>;
@@ -85,7 +86,7 @@ export function VoiceDesignWorkbench(props: Props) {
     const promptPreview = composePrompt(workspace.composer);
     setProject(detail);
     if (!preserveDraft || !dirty.current) setDraft({ ...workspace, prompt_preview: promptPreview });
-    setTasks(taskList);
+    setTasks((current) => mergeTaskList(current, taskList, projectId, "voice_design"));
     setHistory(outputs);
     setSelected((current) => outputs.find((item) => item.id === current?.id) || outputs[0] || null);
     if (!preserveDraft || !dirty.current) {
@@ -115,21 +116,6 @@ export function VoiceDesignWorkbench(props: Props) {
   }, [project]);
 
   useEffect(() => { refresh().catch((error) => setLoadError(error instanceof Error ? error.message : "项目载入失败")); }, [refresh]);
-  useEffect(() => {
-    const event = props.event;
-    if (!event) return;
-    if (event.type === "task.updated") {
-      const task = event.payload as TaskRecord;
-      if (task.project_id !== projectId || task.module !== "voice_design") return;
-      setTasks((current) => upsertTask(current, task));
-      if (task.status === "completed") void refresh(true);
-    }
-    if (event.type === "task.removed") {
-      const removed = event.payload as { id: string; project_id: string; module?: string };
-      if (removed.project_id === projectId && removed.module === "voice_design") setTasks((current) => current.filter((item) => item.id !== removed.id));
-    }
-  }, [projectId, props.event, refresh]);
-
   useEffect(() => {
     if (!dirty.current || !draft || !project || !module?.installed) return;
     setSaveState("保存中…");
@@ -206,6 +192,13 @@ export function VoiceDesignWorkbench(props: Props) {
   const canEdit = Boolean(module?.installed);
   const composerPreview = useMemo(() => draft ? composePrompt(draft.composer) : "", [draft]);
 
+  useTaskActivitySync({
+    projectId,
+    module: "voice_design",
+    tasks,
+    setTasks,
+    reconcile: () => refresh(true),
+  });
   if (loadError || !project || !draft) return <><TitleBar runtime={props.runtime} metrics={props.metrics} theme={props.theme} onTheme={props.onTheme} onBack={() => navigate("/projects")} onRelease={async () => props.onRuntime(await api.releaseRuntime())} /><ModuleTabs modules={props.modules} /><main className={styles.loading}><EmptyState title={loadError ? "项目无法打开" : "正在准备音色设计"} detail={loadError || "正在读取项目草稿与音色设计历史…"} /></main></>;
 
   return <>
@@ -258,11 +251,11 @@ export function VoiceDesignWorkbench(props: Props) {
           </div>
         </ModuleGenerateCard>
         <ModuleCurrentOutput actions={selected && <Button className={styles.compactButton} variant="ghost" icon={<Save size={13} />} onClick={() => { setVoiceName(""); setSaveVoiceOpen(true); }}>保存为音色</Button>}>
-          <ModuleOutputPlayer module="voice_design" output={selected} emptyDetail="生成完成后会先写入项目历史，再显示在这里。" onOpen={(output) => api.openArtifact(output.id)} />
+          <ModuleOutputPlayer module="voice_design" output={selected} emptyDetail="生成完成后会先写入项目历史，再显示在这里。" onOpen={(output) => api.openArtifact(output.id)} onMessage={props.onMessage} />
         </ModuleCurrentOutput>
-        <ModuleActivityTimeline actions={<ModuleActivityActions clearDisabled={!history.length && !tasks.length} onClear={async () => { if (!window.confirm("清除音色设计任务与历史记录吗？音频文件会保留。")) return; await api.clearActivity(project.id, false, "voice_design"); await refresh(); }} onOpenFolder={() => api.openProjectOutputFolder(project.id, "voice_design")} />}>
+        <ModuleActivityTimeline actions={<ModuleActivityActions clearDisabled={!history.length && !tasks.length} onClear={async () => { if (!window.confirm("清除音色设计任务与历史记录吗？音频文件会保留。")) return; await api.clearActivity(project.id, false, "voice_design"); setTasks((current) => current.filter((task) => task.status === "queued" || task.status === "running")); setHistory([]); setSelected(null); }} onOpenFolder={() => api.openProjectOutputFolder(project.id, "voice_design")} />}>
           <div className={styles.historyList}>
-            {tasks.filter((task) => task.status !== "completed" || !history.some((output) => output.task_id === task.id)).map((task) => <ModuleActivityTaskRow key={task.id} task={task} onCancel={async (item) => { await api.cancelTask(item.id); }} onRemove={async (item) => { await api.removeTask(item.id); await refresh(); }} />)}
+            {tasks.filter((task) => task.status !== "completed" || !history.some((output) => output.task_id === task.id)).map((task) => <ModuleActivityTaskRow key={task.id} task={task} onCancel={async (item) => { await api.cancelTask(item.id); }} onRemove={async (item) => { const result = await api.removeTask(item.id); if (result.pending && result.task) setTasks((current) => upsertTask(current, result.task!)); else setTasks((current) => current.filter((task) => task.id !== item.id)); }} />)}
             {history.map((output) => <ModuleActivityOutputRow key={output.id} module="voice_design" output={output} selected={selected?.id === output.id} onSelect={setSelected} />)}
             {!tasks.length && !history.length && <EmptyState title="暂无设计历史" detail="生成任务和试听结果会按时间保存在当前项目。" />}
           </div>

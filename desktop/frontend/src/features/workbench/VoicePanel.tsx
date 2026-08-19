@@ -1,7 +1,8 @@
-import { useMemo, useRef, useState, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { FileAudio2, Info, Save, Sparkles, Upload } from "lucide-react";
 import type { VoiceAsset, WorkspaceDraft } from "../../types";
 import { api } from "../../services/api";
+import { AudioDropZone } from "../../components/AudioDropZone";
 import { AudioWaveform } from "../../components/AudioWaveform";
 import { Badge, Button, Section, TextInput } from "../../components/UI";
 import { VoiceAssetLibrary } from "../modules/VoiceAssetLibrary";
@@ -19,7 +20,6 @@ interface Props {
 }
 
 export function VoicePanel({ voices, workspace, onWorkspace, onVoicesChanged, onMessage, onOpenVoiceDesign, leading, locked = false }: Props) {
-  const fileInput = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [saveName, setSaveName] = useState("");
   const selectedId = workspace.voice_id || workspace.reference_id;
@@ -38,7 +38,6 @@ export function VoicePanel({ voices, workspace, onWorkspace, onVoicesChanged, on
       onMessage(error instanceof Error ? error.message : "上传失败", "error");
     } finally {
       setBusy(false);
-      if (fileInput.current) fileInput.current.value = "";
     }
   }
 
@@ -86,10 +85,19 @@ export function VoicePanel({ voices, workspace, onWorkspace, onVoicesChanged, on
         </button>
       }>
         <div className={styles.sectionBody}>
-          <button className={styles.uploadZone} onClick={() => fileInput.current?.click()} disabled={busy}>
-            <span><Upload size={18} /></span><strong>{busy ? "正在分析音频…" : "上传参考音频"}</strong><small>上传后会直接用于生成，无需先保存</small>
-          </button>
-          <input ref={fileInput} type="file" accept="audio/*,.wav,.flac,.mp3,.ogg,.m4a" hidden onChange={(event) => upload(event.target.files?.[0])} />
+          <AudioDropZone
+            busy={busy}
+            disabled={locked}
+            className={styles.uploadZone}
+            onFile={upload}
+            onError={(message) => onMessage(message, "error")}
+          >
+            {(dragActive) => <>
+              <span><Upload size={18} /></span>
+              <strong>{dragActive ? "松开以上传" : busy ? "正在分析音频…" : "上传参考音频"}</strong>
+              <small>点击选择，或将音频拖入此处</small>
+            </>}
+          </AudioDropZone>
 
           {selected ? <>
             <div className={styles.assetHeading}><div><FileAudio2 size={16} /><span><strong>{selected.name}</strong><small>{selected.saved ? "音色库资产" : "临时参考"}</small></span></div><Badge tone={selected.health.score >= 78 ? "success" : selected.health.score >= 55 ? "warning" : "danger"}>{selected.health.score} · {selected.health.suitability}</Badge></div>

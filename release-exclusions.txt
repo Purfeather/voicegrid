@@ -14,12 +14,16 @@ __pycache__
 *.tmp
 *.temp
 *.bak
-data
+.rebuild-cache
+*.7z
+*.7z.*
+*.zip
+*.zip.*
+data/*
 startup-lab
 
 [standard]
 optional-models
-runtimes
 tests
 desktop/tests
 design-system

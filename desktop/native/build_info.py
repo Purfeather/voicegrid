@@ -21,6 +21,8 @@ class BuildInfo:
     def display_version(self) -> str:
         core = self.version.split("-", 1)[0]
         parts = core.split(".")
+        if len(parts) >= 3:
+            return core
         return ".".join(parts[:2]) if len(parts) >= 2 else core
 
     @property
@@ -39,6 +41,6 @@ def _read_manifest() -> dict[str, Any]:
 _manifest = _read_manifest()
 BUILD_INFO = BuildInfo(
     product=str(_manifest.get("product") or "声格 VoiceGrid"),
-    version=str(_manifest.get("version") or "1.0.0"),
-    build_id=str(_manifest.get("build_id") or "VOICEGRID-1.0.0"),
+    version=str(_manifest.get("version") or "1.0.2"),
+    build_id=str(_manifest.get("build_id") or "VOICEGRID-1.0.2"),
 )

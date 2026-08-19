@@ -2,7 +2,6 @@ import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react"
 import { Navigate, Route, Routes, useLocation, useNavigate, useParams } from "react-router-dom";
 import { AlertTriangle, Clock3, FolderOpen, RefreshCw } from "lucide-react";
 import type {
-  AppEvent,
   CoreBootstrap,
   HardwareMetrics,
   ModuleDescriptor,
@@ -87,7 +86,6 @@ export function App() {
   const [modules, setModules] = useState<ResourceState<ModuleDescriptor[]>>(() => initialResource([]));
   const [theme, setTheme] = useState<ThemeId>(loadTheme);
   const [toast, setToast] = useState<{ message: string; tone: "success" | "error" } | null>(null);
-  const [lastEvent, setLastEvent] = useState<AppEvent | null>(null);
   const [slowCritical, setSlowCritical] = useState(false);
   const [slowReset, setSlowReset] = useState(0);
   const readyReported = useRef(false);
@@ -180,7 +178,6 @@ export function App() {
     }
     if (event.type === "voice.updated") void refreshVoicesAndStyles();
     if (event.type === "project.saved" && location.pathname === "/projects") void refreshProjects();
-    setLastEvent(event);
   }), [location.pathname, refreshProjects, refreshVoicesAndStyles]);
   useEffect(() => {
     if (!toast) return;
@@ -270,7 +267,6 @@ export function App() {
             languages={core.data?.languages || []}
             runtime={runtime.data}
             metrics={metrics.data}
-            event={lastEvent}
             theme={theme}
             onTheme={setTheme}
             onRefreshResources={refreshVoicesAndStyles}
@@ -288,7 +284,6 @@ export function App() {
             voices={voices.data}
             runtime={runtime.data}
             metrics={metrics.data}
-            event={lastEvent}
             theme={theme}
             onTheme={setTheme}
             onModulesChanged={refreshModules}

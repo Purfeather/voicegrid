@@ -1,5 +1,6 @@
 # Local Python and frontend dependency environments
 .venv/
+runtime/
 node_modules/
 **/node_modules/
 
@@ -47,6 +48,7 @@ Desktop.ini
 *.zip
 *.7z
 *.part*
+/RELEASE-MANIFEST.json
 
 desktop/frontend/.vite/
 desktop/frontend/coverage/

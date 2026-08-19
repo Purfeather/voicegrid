@@ -1,6 +1,6 @@
 # 声格 VoiceGrid 1.0
 
-声格 VoiceGrid 是一套本地桌面音频工作站。界面使用 React + TypeScript，后端使用 FastAPI + SQLite，桌面窗口由 PyWebView2 承载。当前正式版本为 `1.0.0`。
+声格 VoiceGrid 是一套本地桌面音频工作站。界面使用 React + TypeScript，后端使用 FastAPI + SQLite，桌面窗口由 PyWebView2 承载。当前正式版本为 `1.0.2`。
 
 ## 开源许可
 

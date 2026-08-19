@@ -11,6 +11,9 @@ import sys
 import threading
 import time
 import traceback
+import urllib.error
+import urllib.parse
+import urllib.request
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable
@@ -166,7 +169,7 @@ class NativeSplash:
             action_button("退出", lambda: threading.Thread(target=self.host.shutdown, name="splash-exit", daemon=True).start())
             footer = tk.Frame(card, bg="#111315")
             footer.pack(side="bottom", fill="x", pady=(18, 0))
-            tk.Label(footer, text=BUILD_INFO.version, bg="#111315", fg="#9aa2ad", font=("Consolas", 8)).pack(side="left")
+            tk.Label(footer, text=BUILD_INFO.display_version, bg="#111315", fg="#9aa2ad", font=("Consolas", 8)).pack(side="left")
             tk.Label(footer, textvariable=elapsed_var, bg="#111315", fg="#9aa2ad", font=("Consolas", 8)).pack(side="right")
 
             phase_names = {
@@ -906,6 +909,57 @@ class NativeApi:
     def exit_save_completed(self, success: bool) -> bool:
         return self._host.exit_save_completed(success)
 
+    def save_artifact(self, asset_id: str, suggested_name: str = "") -> dict[str, Any]:
+        if not asset_id.strip():
+            raise ValueError("文件资源标识无效。")
+        suggested = Path(suggested_name).name.strip() or "VoiceGrid-output.wav"
+        if Path(suggested).suffix.lower() not in {".wav", ".flac"}:
+            suggested = f"{suggested}.wav"
+        downloads = Path(os.environ.get("USERPROFILE", str(Path.home()))) / "Downloads"
+        if not downloads.is_dir():
+            downloads = Path.home()
+        result = self._host.window.create_file_dialog(
+            webview.FileDialog.SAVE,
+            directory=str(downloads),
+            save_filename=suggested,
+            file_types=("Audio files (*.wav;*.flac)", "All files (*.*)"),
+        )
+        if not result:
+            return {"status": "cancelled"}
+        if isinstance(result, (list, tuple)):
+            selected = str(result[0]) if result else ""
+        else:
+            selected = str(result)
+        if not selected:
+            return {"status": "cancelled"}
+        target = Path(selected).expanduser()
+        if not target.suffix:
+            target = target.with_suffix(Path(suggested).suffix.lower())
+        target.parent.mkdir(parents=True, exist_ok=True)
+        partial = target.with_name(f".{target.name}.voicegrid-partial")
+        url = f"http://{HOST}:{PORT}/api/v2/artifacts/{urllib.parse.quote(asset_id, safe='')}?download=true"
+        try:
+            with urllib.request.urlopen(url, timeout=90) as response, partial.open("wb") as handle:
+                while True:
+                    chunk = response.read(1024 * 1024)
+                    if not chunk:
+                        break
+                    handle.write(chunk)
+                handle.flush()
+                os.fsync(handle.fileno())
+            os.replace(partial, target)
+        except urllib.error.HTTPError as exc:
+            partial.unlink(missing_ok=True)
+            try:
+                payload = json.loads(exc.read().decode("utf-8", errors="replace"))
+                detail = payload.get("detail") if isinstance(payload, dict) else None
+            except Exception:
+                detail = None
+            raise RuntimeError(str(detail or "输出文件不存在或无法读取。")) from exc
+        except Exception:
+            partial.unlink(missing_ok=True)
+            raise
+        return {"status": "saved", "filename": target.name}
     def select_folder(self, initial: str = "") -> str | None:
         start = Path(initial).expanduser() if initial else ROOT
         if start.is_file():

@@ -6,6 +6,11 @@ param(
 
 $ErrorActionPreference = "Stop"
 $repoRoot = Split-Path -Parent $PSScriptRoot
+$buildManifest = Get-Content -LiteralPath (Join-Path $repoRoot "build.json") -Raw -Encoding UTF8 | ConvertFrom-Json
+$version = [string]$buildManifest.version
+if (-not $version) {
+    throw "build.json does not contain a version."
+}
 if (-not $Executable) {
     $candidates = @(Get-ChildItem -LiteralPath $repoRoot -Filter "VoiceGrid *.exe" -File)
     if ($candidates.Count -ne 1) {
@@ -50,11 +55,11 @@ try {
         throw "Authenticode signature was not embedded."
     }
 
-    $cerPath = Join-Path $certificateDirectory "VoiceGrid-1.0.0-SelfSigned.cer"
+    $cerPath = Join-Path $certificateDirectory "VoiceGrid-$version-SelfSigned.cer"
     Export-Certificate -Cert $certificate -FilePath $cerPath -Force | Out-Null
     $hash = (Get-FileHash -LiteralPath $exe -Algorithm SHA256).Hash.ToLowerInvariant()
     $info = @(
-        "VoiceGrid 1.0.0 self-signed release certificate",
+        "VoiceGrid $version self-signed release certificate",
         "Executable: $([System.IO.Path]::GetFileName($exe))",
         "SHA256: $hash",
         "Certificate subject: $($certificate.Subject)",

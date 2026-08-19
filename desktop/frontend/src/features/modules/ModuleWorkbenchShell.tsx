@@ -1,8 +1,10 @@
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { BrushCleaning, ChevronDown, ChevronUp, Download, FolderOpen, LoaderCircle, SlidersHorizontal, Trash2 } from "lucide-react";
 import type { ModuleId, OutputRecord, TaskRecord } from "../../types";
 import { Badge, Button, EmptyState, IconButton, Progress, Section } from "../../components/UI";
 import { MODULE_VISUALS } from "./moduleVisuals";
+import { errorMessage } from "../../services/errors";
+import { saveArtifact } from "../../services/native";
 import styles from "./moduleWorkbenchShell.module.css";
 
 export function ModuleWorkbenchShell({ children, parameterRail, label }: { children: ReactNode; parameterRail?: ReactNode; label: string }) {
@@ -51,11 +53,40 @@ export function ModuleStatusHeader({ module, title, detail, actions }: { module:
   return <header className={styles.moduleStatusHeader}><span className={styles.moduleStatusIcon}><Icon size={15} /></span><div><small>{visual.installEyebrow}</small><strong>{title}</strong>{detail && <span>{detail}</span>}</div>{actions && <div className={styles.moduleStatusActions}>{actions}</div>}</header>;
 }
 
-export function ModuleOutputPlayer({ module, output, emptyDetail, onOpen, detail }: { module: ModuleId; output: OutputRecord | null; emptyDetail: string; onOpen?: (output: OutputRecord) => void | Promise<void>; detail?: (output: OutputRecord) => ReactNode }) {
+export function ModuleOutputPlayer({ module, output, emptyDetail, onOpen, detail, onMessage }: {
+  module: ModuleId;
+  output: OutputRecord | null;
+  emptyDetail: string;
+  onOpen?: (output: OutputRecord) => void | Promise<void>;
+  detail?: (output: OutputRecord) => ReactNode;
+  onMessage?: (message: string, tone?: "success" | "error") => void;
+}) {
   const visual = MODULE_VISUALS[module];
   const Icon = visual.icon;
+  const [downloading, setDownloading] = useState(false);
+
+  async function download() {
+    if (!output || downloading) return;
+    setDownloading(true);
+    try {
+      const result = await saveArtifact(output.id, output.filename);
+      if (result.status === "saved") onMessage?.("文件已保存。", "success");
+    } catch (error) {
+      onMessage?.(errorMessage(error, "下载失败，请稍后重试。"), "error");
+    } finally {
+      setDownloading(false);
+    }
+  }
+
   if (!output) return <EmptyState title={visual.emptyOutputTitle} detail={emptyDetail} />;
-  return <div className={styles.currentOutput}><div><span className={styles.outputIcon}><Icon size={15} /></span><div><strong title={output.filename}>{output.filename}</strong><small>{detail?.(output) || <>{output.duration.toFixed(1)} 秒 · {output.sample_rate / 1000} kHz · {output.channels === 1 ? "单声道" : `${output.channels} 声道`}</>}</small></div></div><audio controls src={output.artifact_url} /><div className={styles.outputActions}><Button variant="secondary" icon={<FolderOpen size={14} />} onClick={() => onOpen?.(output)}>打开目录</Button><a href={output.artifact_url.includes("download=") ? output.artifact_url : `${output.artifact_url}${output.artifact_url.includes("?") ? "&" : "?"}download=true`} download><Download size={14} />下载</a></div></div>;
+  return <div className={styles.currentOutput}>
+    <div><span className={styles.outputIcon}><Icon size={15} /></span><div><strong title={output.filename}>{output.filename}</strong><small>{detail?.(output) || <>{output.duration.toFixed(1)} 秒 · {output.sample_rate / 1000} kHz · {output.channels === 1 ? "单声道" : `${output.channels} 声道`}</>}</small></div></div>
+    <audio controls src={output.artifact_url} />
+    <div className={styles.outputActions}>
+      <Button variant="secondary" icon={<FolderOpen size={14} />} onClick={() => onOpen?.(output)}>打开目录</Button>
+      <Button variant="primary" busy={downloading} disabled={downloading} icon={<Download size={14} />} onClick={download}>下载</Button>
+    </div>
+  </div>;
 }
 
 function activityTone(status: TaskRecord["status"]): "success" | "warning" | "danger" | "neutral" {

@@ -9,6 +9,7 @@ import shutil
 import stat
 import subprocess
 import sys
+import zipfile
 from pathlib import Path
 from typing import Iterable
 
@@ -35,6 +36,7 @@ DATA_DIRS = (
     "cache",
     "logs",
     "modules",
+    "outputs",
     "projects",
     "references",
     "uploads",
@@ -82,6 +84,15 @@ def _is_release_excluded(relative: Path, flavor: str) -> bool:
             return True
     return False
 
+
+def reset_package_data(destination: Path, keep_module_states: bool = False) -> None:
+    data = destination / "data"
+    if data.exists():
+        shutil.rmtree(data)
+    for name in DATA_DIRS:
+        (data / name).mkdir(parents=True, exist_ok=True)
+    if keep_module_states:
+        (data / "modules").mkdir(parents=True, exist_ok=True)
 
 def prune_release_stage(destination: Path, flavor: str) -> None:
     for path in sorted(destination.rglob("*"), key=lambda item: len(item.parts), reverse=True):
@@ -186,7 +197,10 @@ def validate_python(runtime: Path, imports: str) -> None:
             "import sys;"
             "assert sys.version_info[:2] == (3, 12), sys.version;"
             f"{imports};"
-            "print(sys.version);print(sys.prefix)"
+            "import torch.utils.data as torch_data;"
+            "import os;"
+            "assert torch_data.__file__ and os.path.isfile(torch_data.__file__);"
+            "print(sys.version);print(sys.prefix);print(torch_data.__file__)"
         ),
     ])
 
@@ -202,6 +216,8 @@ def stage_standard(release_root: Path, base_runtime: Path) -> Path:
         ROOT / ".venv" / "Lib" / "site-packages",
         destination / "runtime",
     )
+    prune_release_stage(destination, "standard")
+    reset_package_data(destination)
     validate_python(
         destination / "runtime",
         "import torch,torchaudio,transformers,modelscope,fastapi,pydantic,"
@@ -212,6 +228,51 @@ def stage_standard(release_root: Path, base_runtime: Path) -> Path:
     verify_stage(destination, expect_models=False, flavor="standard")
     return destination
 
+
+def seed_offline_module_states(destination: Path) -> None:
+    state_dir = destination / "data" / "modules"
+    state_dir.mkdir(parents=True, exist_ok=True)
+    states = {
+        "speech": {
+            "installed": True,
+            "model_ready": True,
+            "runtime_ready": True,
+            "status": "ready",
+            "phase": "validated",
+            "progress": 1.0,
+            "message": "模型与运行环境已就绪",
+            "error": "",
+            "missing": [],
+        },
+        "voice_design": {
+            "installed": True,
+            "model_ready": True,
+            "runtime_ready": True,
+            "status": "ready",
+            "phase": "validated",
+            "progress": 1.0,
+            "message": "模型与运行环境已就绪",
+            "error": "",
+            "missing": [],
+        },
+        "sound_effect": {
+            "installed": True,
+            "model_ready": True,
+            "runtime_ready": True,
+            "status": "ready",
+            "phase": "validated",
+            "progress": 1.0,
+            "message": "模型与运行环境已就绪",
+            "error": "",
+            "missing": [],
+        },
+    }
+    for module_id, state in states.items():
+        (state_dir / f"{module_id}.json").write_text(
+            json.dumps(state, ensure_ascii=False, indent=2) + "\n",
+            encoding="utf-8",
+            newline="\n",
+        )
 
 def stage_offline(release_root: Path, base_runtime: Path, standard: Path) -> Path:
     destination = release_root / "staging" / PACKAGE_NAMES["offline"]
@@ -234,6 +295,14 @@ def stage_offline(release_root: Path, base_runtime: Path, standard: Path) -> Pat
     copytree(
         ROOT / "runtimes" / "sources",
         destination / "runtimes" / "sources",
+    )
+    reset_package_data(destination, keep_module_states=True)
+    seed_offline_module_states(destination)
+    prune_release_stage(destination, "offline")
+    validate_python(
+        destination / "runtime",
+        "import torch,torchaudio,transformers,modelscope,fastapi,pydantic,"
+        "uvicorn,webview,soundfile,pystray,PIL",
     )
     validate_python(
         destination / "runtimes" / "moss-voice-generator",
@@ -332,6 +401,26 @@ def verify_stage(
         violations = [path.relative_to(destination).as_posix() for path in iter_files(destination) if _is_release_excluded(path.relative_to(destination), flavor)]
         if violations:
             raise RuntimeError(f"Release exclusions leaked into {flavor}: {violations[:20]}")
+    debris = [
+        path.relative_to(destination).as_posix()
+        for path in destination.rglob("*")
+        if "__pycache__" in path.parts
+        or path.suffix.lower() in {".pyc", ".pyo"}
+        or path.name == "启动测试版.bat"
+    ]
+    if debris:
+        raise RuntimeError("Release debris found: " + ", ".join(debris[:20]))
+    if source_package:
+        forbidden_roots = (
+            destination / "data",
+            destination / "runtime",
+            destination / "runtimes",
+            destination / "optional-models",
+            destination / "desktop" / "frontend" / "dist",
+        )
+        source_leaks = [path.relative_to(destination).as_posix() for path in forbidden_roots if path.exists()]
+        if source_leaks:
+            raise RuntimeError("Generated or runtime content found in source package: " + ", ".join(source_leaks))
     if not (destination / "LICENSE").is_file():
         raise RuntimeError(f"MIT license is missing from {destination}")
     if not source_package:
@@ -359,10 +448,10 @@ def verify_stage(
                     violations.append(f"{path.relative_to(destination)}: {marker}")
         if violations:
             raise RuntimeError("Absolute development paths found:\n" + "\n".join(violations[:20]))
+    model_root = destination / "optional-models"
     present_models = {
-        name for name in MODEL_DIRS
-        if (destination / "optional-models" / name).is_dir()
-    }
+        path.name for path in model_root.iterdir() if path.is_dir()
+    } if model_root.is_dir() else set()
     if expect_models and present_models != set(MODEL_DIRS):
         raise RuntimeError(f"Offline model set is incomplete: {present_models}")
     if not expect_models and present_models:
@@ -384,7 +473,7 @@ def write_file_manifest(stage: Path, report: Path) -> None:
     report.write_text("\n".join(lines) + "\n", encoding="utf-8", newline="\n")
 
 
-def find_7zip(release_root: Path) -> Path:
+def find_zip_archiver(release_root: Path) -> Path:
     candidates = (
         release_root / "tools" / "7zip-26.02" / "7z.exe",
         release_root / "tools" / "7zip-26.02" / "7za.exe",
@@ -392,38 +481,51 @@ def find_7zip(release_root: Path) -> Path:
     for candidate in candidates:
         if candidate.is_file():
             return candidate
-    raise FileNotFoundError("7-Zip 26.02 is missing from release tools.")
+    raise FileNotFoundError("ZIP split tool is missing from release tools.")
 
 
 def archive_stage(release_root: Path, flavor: str) -> list[Path]:
     stage = release_root / "staging" / PACKAGE_NAMES[flavor]
     if not stage.is_dir():
         raise FileNotFoundError(stage)
+
     artifacts = release_root / "artifacts"
-    base = artifacts / f"{PACKAGE_NAMES[flavor]}.7z"
+    artifacts.mkdir(parents=True, exist_ok=True)
+    base = artifacts / f"{PACKAGE_NAMES[flavor]}.zip"
     for old in artifacts.glob(base.name + "*"):
         safe_remove(old, release_root)
-    seven_zip = find_7zip(release_root)
-    command = [
-        str(seven_zip), "a", "-t7z", "-mx=5", "-m0=lzma2", "-mmt=on",
-    ]
-    # The offline edition is always distributed as 4 GiB volumes. Standard
-    # and source editions stay as single archives; their compressed artifact
-    # size is validated after creation and must remain within the 4 GiB limit.
-    if flavor == "offline":
-        command.append("-v4g")
-    command.extend([str(base), stage.name])
-    run(command, stage.parent)
-    volumes = sorted(artifacts.glob(base.name + "*"))
-    if not volumes:
-        raise RuntimeError(f"Archive was not created: {base}")
-    if flavor != "offline" and len(volumes) == 1 and volumes[0].stat().st_size > 4 * 1024**3:
-        raise RuntimeError(
-            f"{flavor} archive exceeds 4 GiB and must be rebuilt as volumes: {volumes[0]}"
-        )
-    run([str(seven_zip), "t", str(volumes[0])], artifacts)
-    return volumes
 
+    if flavor == "offline":
+        zip_tool = find_zip_archiver(release_root)
+        run(
+            [
+                str(zip_tool), "a", "-tzip", "-mx=5", "-mmt=on", "-v4g",
+                str(base), stage.name,
+            ],
+            stage.parent,
+        )
+        volumes = sorted(artifacts.glob(base.name + "*"))
+        if not volumes:
+            raise RuntimeError(f"ZIP split archive was not created: {base}")
+        run([str(zip_tool), "t", str(volumes[0])], artifacts)
+        return volumes
+
+    with zipfile.ZipFile(
+        base,
+        mode="w",
+        compression=zipfile.ZIP_DEFLATED,
+        compresslevel=6,
+        allowZip64=True,
+    ) as archive:
+        for path in sorted(iter_files(stage), key=lambda item: item.as_posix().lower()):
+            relative = path.relative_to(stage).as_posix()
+            archive.write(path, f"{stage.name}/{relative}")
+
+    with zipfile.ZipFile(base, mode="r", allowZip64=True) as archive:
+        broken = archive.testzip()
+        if broken is not None:
+            raise RuntimeError(f"ZIP integrity check failed at {broken}")
+    return [base]
 
 def write_artifact_hashes(release_root: Path) -> Path:
     artifacts = release_root / "artifacts"

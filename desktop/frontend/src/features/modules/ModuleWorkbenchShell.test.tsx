@@ -1,6 +1,8 @@
-import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { OutputRecord, TaskRecord } from "../../types";
+
+afterEach(cleanup);
 import { ModuleActivityOutputRow, ModuleActivityTaskRow, ModuleOutputPlayer, ModuleStatusHeader } from "./ModuleWorkbenchShell";
 
 const output: OutputRecord = {
@@ -36,5 +38,19 @@ describe("shared module workbench components", () => {
   it("uses the module-specific empty output copy", () => {
     render(<ModuleOutputPlayer module="sound_effect" output={null} emptyDetail="生成后显示" />);
     expect(screen.getByText("还没有音效输出")).toBeInTheDocument();
+  });
+});
+
+
+describe("ModuleOutputPlayer download", () => {
+  it("uses the controlled save flow and reports success", async () => {
+    const native = await import("../../services/native");
+    const save = vi.spyOn(native, "saveArtifact").mockResolvedValue({ status: "saved", filename: output.filename });
+    const onMessage = vi.fn();
+    render(<ModuleOutputPlayer module="speech" output={output} emptyDetail="暂无" onMessage={onMessage} />);
+    fireEvent.click(screen.getByRole("button", { name: "下载" }));
+    await waitFor(() => expect(save).toHaveBeenCalledWith("output-1", "测试音频.wav"));
+    expect(onMessage).toHaveBeenCalledWith("文件已保存。", "success");
+    save.mockRestore();
   });
 });
