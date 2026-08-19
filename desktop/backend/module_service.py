@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import re
+import time
 import os
 import shutil
 import subprocess
@@ -42,6 +44,13 @@ from .paths import (
 )
 
 
+_INSTALL_ANSI_RE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
+
+
+def _clean_install_output(value: str) -> str:
+    without_ansi = _INSTALL_ANSI_RE.sub("", value).replace("\r", "")
+    return "".join(character for character in without_ansi if character in "\t\n" or ord(character) >= 32 and ord(character) != 127).strip()
+
 def _append_module_log(module_id: str, message: str) -> None:
     append_diagnostic_log(f"module-install-{module_id}", message)
 
@@ -69,6 +78,8 @@ class ModuleService:
     def _save_state(self, module_id: str, **changes: Any) -> None:
         with self.lock:
             state = self.states.setdefault(module_id, {})
+            if "progress" in changes:
+                changes["progress"] = max(float(state.get("progress", 0.0)), min(1.0, float(changes["progress"])))
             state.update(changes, updated_at=datetime.now().isoformat(timespec="seconds"))
             target = MODULE_STATE_DIR / f"{module_id}.json"
             temporary = target.with_suffix(".json.tmp")
@@ -215,7 +226,7 @@ class ModuleService:
             command,
             cwd=ROOT,
             stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
+            stderr=subprocess.PIPE,
             text=True,
             encoding="utf-8",
             errors="replace",
@@ -224,39 +235,67 @@ class ModuleService:
         with self.lock:
             self.install_processes[module_id] = process
         tail: list[str] = []
+        stderr_tail: list[str] = []
+
+        def drain_stderr() -> None:
+            if process.stderr is None:
+                return
+            for line in process.stderr:
+                clean = _clean_install_output(line)
+                if clean:
+                    _append_module_log(module_id, f"{phase} stderr: {clean}")
+                    stderr_tail.append(clean)
+                    del stderr_tail[:-8]
+
+        stderr_thread = threading.Thread(target=drain_stderr, name=f"module-install-stderr-{module_id}", daemon=True)
+        stderr_thread.start()
+        last_progress = -1.0
+        last_emit = 0.0
         assert process.stdout is not None
         for line in process.stdout:
-            clean = line.strip()
-            if clean:
-                _append_module_log(module_id, f"{phase}: {clean}")
-                if clean.startswith("VOICEGRID_INSTALL_PROGRESS "):
-                    try:
-                        update = json.loads(clean.removeprefix("VOICEGRID_INSTALL_PROGRESS "))
-                        completed = int(update.get("downloaded", 0))
-                        total = max(1, int(update.get("total", 1)))
-                        current_file = str(update.get("file") or "模型文件")
-                        actual_progress = min(1.0, max(0.0, completed / total))
+            clean = _clean_install_output(line)
+            if not clean:
+                continue
+            _append_module_log(module_id, f"{phase}: {clean}")
+            marker = "VOICEGRID_INSTALL_PROGRESS "
+            marker_index = clean.find(marker)
+            if marker_index >= 0:
+                try:
+                    update = json.loads(clean[marker_index + len(marker):])
+                    completed = int(update.get("downloaded", 0))
+                    total = max(1, int(update.get("total", 1)))
+                    current_file = str(update.get("file") or "\u6a21\u578b\u6587\u4ef6").replace("\\", "/").rsplit("/", 1)[-1]
+                    actual_progress = min(1.0, max(0.0, completed / total))
+                    combined_progress = progress + actual_progress * progress_span
+                    now_value = time.monotonic()
+                    if combined_progress >= last_progress and (
+                        combined_progress - last_progress >= 0.005 or now_value - last_emit >= 0.2 or actual_progress >= 1.0
+                    ):
                         self._save_state(
                             module_id,
                             status="installing",
                             phase=phase,
-                            message=f"正在下载 {current_file} · {completed / 1024**3:.1f}/{total / 1024**3:.1f} GB",
-                            progress=progress + actual_progress * progress_span,
+                            message=f"\u6b63\u5728\u4e0b\u8f7d {current_file} \u00b7 {completed / 1024**3:.1f}/{total / 1024**3:.1f} GB",
+                            progress=combined_progress,
                             error="",
                         )
-                        continue
-                    except Exception:
-                        pass
-                tail.append(clean)
-                tail = tail[-8:]
-                self._save_state(module_id, status="installing", phase=phase, message=clean[:240], progress=progress, error="")
+                        last_progress = combined_progress
+                        last_emit = now_value
+                    continue
+                except Exception:
+                    tail.append(clean)
+                    del tail[:-8]
+                    continue
+            tail.append(clean)
+            del tail[:-8]
         code = process.wait()
+        stderr_thread.join(timeout=5)
         with self.lock:
             self.install_processes.pop(module_id, None)
+        tail.extend(stderr_tail[-8:])
         _append_module_log(module_id, f"END {phase}: exit={code}")
         if code:
-            raise RuntimeError("\n".join(tail) or f"安装步骤退出，代码 {code}")
-
+            raise RuntimeError("\n".join(tail) or f"\u5b89\u88c5\u6b65\u9aa4\u9000\u51fa\uff0c\u4ee3\u7801 {code}")
     def _install(self, module_id: str) -> None:
         _append_module_log(module_id, "INSTALL BEGIN")
         try:

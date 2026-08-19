@@ -70,10 +70,10 @@ export interface AudioHealth {
   clipping_ratio: number; snr_db: number; silence_ratio: number; score: number; suitability: string;
   findings: Array<{ level: "success" | "warning" | "error"; message: string }>; waveform: number[];
 }
-export interface VoiceAsset { id: string; name: string; saved: boolean; created_at: string; artifact_url: string; health: AudioHealth; role?: string; language_accent?: string; gender_age?: string; description?: string; }
+export interface VoiceAsset { id: string; name: string; saved: boolean; created_at: string; artifact_url: string; available?: boolean; health: AudioHealth; role?: string; language_accent?: string; gender_age?: string; description?: string; }
 export interface StylePreset { name: string; instruction: string; built_in: boolean; updated_at: string; }
 export interface ProjectSummary { id: string; name: string; updated_at: string; recovery_available: boolean; output_count: number; voice: string; status: string; }
-export interface ProjectDetail extends ProjectSummary { created_at: string; revision: number; workspace: WorkspaceDraft; workspaces: ProjectWorkspaces; history: OutputRecord[]; }
+export interface ProjectDetail extends ProjectSummary { created_at: string; revision: number; workspace: WorkspaceDraft; workspaces: ProjectWorkspaces; history: OutputRecord[]; reference_warning?: string | null; }
 export interface GenerationSnapshot { style: string; instruction: string; reference_audio?: { id: string; name: string; saved: boolean } | null; speed?: "自动" | SpeedLevel; }
 export interface VoiceDesignGenerationSnapshot { mode: "composer" | "freeform"; composer: VoicePromptComposer; prompt_preview: string; instruction: string; text: string; parameters: VoiceDesignParameters; model: string; codec: string; }
 export interface SoundEffectGenerationSnapshot { prompt: string; seconds: number; num_inference_steps: number; cfg_scale: number; sigma_shift: number; seed: number; model: string; runtime_precision: "float16"; low_vram: true; }

@@ -20,6 +20,7 @@ interface Props {
   onClearActivity: () => Promise<void>;
   onOpenOutputFolder: () => Promise<void>;
   onReuse: (snapshot: GenerationSnapshot) => void;
+  onMessage?: (message: string, tone?: "success" | "error") => void;
   locked?: boolean;
 }
 
@@ -27,7 +28,7 @@ type ActivityItem =
   | { kind: "task"; id: string; createdAt: string; task: TaskRecord }
   | { kind: "output"; id: string; createdAt: string; output: OutputRecord };
 
-export function OutputPanel({ workspace, tasks, history, generating, onWorkspace, onGenerate, onCancel, onRemoveTask, onClearActivity, onOpenOutputFolder, onReuse, locked = false }: Props) {
+export function OutputPanel({ workspace, tasks, history, generating, onWorkspace, onGenerate, onCancel, onRemoveTask, onClearActivity, onOpenOutputFolder, onReuse, onMessage, locked = false }: Props) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [popoverPosition, setPopoverPosition] = useState({ top: 0, left: 0, width: 380 });
@@ -109,7 +110,7 @@ export function OutputPanel({ workspace, tasks, history, generating, onWorkspace
       </ModuleGenerateCard>
 
       <ModuleCurrentOutput actions={generationSnapshot && <div ref={settingsButton}><Button className={styles.settingsTrigger} variant="ghost" icon={<Settings2 size={14} />} onClick={() => setSettingsOpen((value) => !value)}>生成设定</Button></div>}>
-        <ModuleOutputPlayer module="speech" output={current} emptyDetail="生成完成后会先保存到活动记录，再自动出现在这里。" onOpen={(output) => api.openArtifact(output.id)} detail={(output) => <>{output.format} · {output.sample_rate / 1000} kHz · {output.bit_depth} bit · {formatDuration(output.duration)}</>} />
+        <ModuleOutputPlayer module="speech" output={current} emptyDetail="生成完成后会先保存到活动记录，再自动出现在这里。" onOpen={(output) => api.openArtifact(output.id)} onMessage={onMessage} detail={(output) => <>{output.format} · {output.sample_rate / 1000} kHz · {output.bit_depth} bit · {formatDuration(output.duration)}</>} />
       </ModuleCurrentOutput>
 
       {settingsOpen && generationSnapshot && createPortal(

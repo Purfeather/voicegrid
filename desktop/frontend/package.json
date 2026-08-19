@@ -2,7 +2,7 @@
   "name": "voicegrid-desktop-ui",
   "private": true,
   "license": "MIT",
-  "version": "1.0.0",
+  "version": "1.0.2",
   "type": "module",
   "scripts": {
     "dev": "vite --host 127.0.0.1",
@@ -28,5 +28,8 @@
     "jsdom": "30.0.1",
     "typescript": "7.0.2",
     "vitest": "4.1.10"
+  },
+  "overrides": {
+    "@rolldown/pluginutils": "1.0.1"
   }
 }

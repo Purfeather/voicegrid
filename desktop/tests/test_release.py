@@ -20,10 +20,10 @@ class ReleasePipelineTests(unittest.TestCase):
         spec.loader.exec_module(cls.module)
 
     def test_release_identity_matches_build_manifest(self) -> None:
-        self.assertEqual(self.module.VERSION, "1.0.0")
+        self.assertEqual(self.module.VERSION, "1.0.2")
         self.assertEqual(
             self.module.BUILD["build_id"],
-            "VOICEGRID-1.0.0-20260814",
+            "VOICEGRID-1.0.2-20260818",
         )
 
     def test_release_root_is_strictly_scoped(self) -> None:
@@ -83,18 +83,24 @@ class ReleasePipelineTests(unittest.TestCase):
                 output = archive.with_name(archive.name + ".001") if "-v4g" in command else archive
                 output.write_bytes(b"archive")
 
+            outputs: dict[str, list[Path]] = {}
             for flavor in ("standard", "source", "offline"):
                 stage = release_root / "staging" / self.module.PACKAGE_NAMES[flavor]
                 stage.mkdir(parents=True)
                 (stage / "payload.bin").write_bytes(b"payload")
                 with mock.patch.object(self.module, "run", side_effect=fake_run):
-                    self.module.archive_stage(release_root, flavor)
+                    outputs[flavor] = self.module.archive_stage(release_root, flavor)
 
             archive_commands = [command for command in commands if command[1] == "a"]
-            by_package = {command[-1]: command for command in archive_commands}
-            self.assertNotIn("-v4g", by_package[self.module.PACKAGE_NAMES["standard"]])
-            self.assertNotIn("-v4g", by_package[self.module.PACKAGE_NAMES["source"]])
-            self.assertIn("-v4g", by_package[self.module.PACKAGE_NAMES["offline"]])
+            self.assertEqual(len(archive_commands), 1)
+            self.assertIn("-v4g", archive_commands[0])
+            self.assertEqual(
+                archive_commands[0][-1],
+                self.module.PACKAGE_NAMES["offline"],
+            )
+            self.assertEqual(outputs["standard"][0].suffix, ".zip")
+            self.assertEqual(outputs["source"][0].suffix, ".zip")
+            self.assertTrue(outputs["offline"][0].name.endswith(".zip.001"))
 
 
 if __name__ == "__main__":

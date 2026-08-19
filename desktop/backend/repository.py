@@ -12,7 +12,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from .audio import analyze_audio, internal_audio_path, save_upload
+from .audio import analyze_audio, audio_file_available, internal_audio_path, record_upload_diagnostic, save_upload
 from .database import DB
 from .defaults import default_workspace
 from .paths import PROJECTS_DIR, UPLOADS_DIR, VOICES_DIR
@@ -290,9 +290,31 @@ def get_project(project_id: str, begin_session: bool = False) -> dict[str, Any]:
     return project_detail(payload)
 
 
+def _normalize_speech_workspace(payload: dict[str, Any]) -> tuple[dict[str, Any], str | None]:
+    workspace = dict(payload.get("workspaces", {}).get("speech", {}))
+    asset_id = workspace.get("voice_id") or workspace.get("reference_id")
+    if not asset_id:
+        return workspace, None
+    row = DB.one("SELECT path FROM voices WHERE id=?", (asset_id,))
+    if row is not None and audio_file_available(row["path"]):
+        return workspace, None
+    workspace["voice_id"] = None
+    workspace["reference_id"] = None
+    workspace["reference_trim_start"] = 0
+    workspace["reference_trim_end"] = None
+    payload.setdefault("workspaces", {})["speech"] = workspace
+    payload["voice_id"] = None
+    try:
+        _write_atomic(_project_file(payload["id"]), payload)
+        with DB.transaction() as connection:
+            connection.execute("UPDATE projects SET voice_id=NULL WHERE id=?", (payload["id"],))
+    except Exception:
+        pass
+    return workspace, "\u53c2\u8003\u97f3\u9891\u5df2\u5931\u6548\uff0c\u5df2\u5207\u6362\u4e3a\u65e0\u53c2\u8003\u6a21\u5f0f\uff0c\u8bf7\u91cd\u65b0\u4e0a\u4f20\u6216\u9009\u62e9\u97f3\u8272\u3002"
+
 def project_detail(payload: dict[str, Any]) -> dict[str, Any]:
     count_row = DB.one("SELECT COUNT(*) AS count FROM outputs WHERE project_id=?", (payload["id"],))
-    speech_workspace = payload.get("workspaces", {}).get("speech", {})
+    speech_workspace, reference_warning = _normalize_speech_workspace(payload)
     return {
         **payload,
         "workspace": speech_workspace,
@@ -300,6 +322,7 @@ def project_detail(payload: dict[str, Any]) -> dict[str, Any]:
         "voice": _project_voice_name(payload.get("workspaces", {}).get("speech", {})),
         "status": "已恢复最近自动保存" if payload.get("recovery_available") else "项目已保存",
         "history": list_outputs(payload["id"], "speech"),
+        "reference_warning": reference_warning,
     }
 
 
@@ -401,15 +424,20 @@ def mark_interrupted_projects() -> None:
 
 
 def add_upload(filename: str, content: bytes) -> dict[str, Any]:
-    path = save_upload(filename, content)
+    path: Path | None = None
     try:
+        path = save_upload(filename, content)
+        record_upload_diagnostic(filename, len(content), path, "written")
         health = analyze_audio(path)
-    except Exception:
-        path.unlink(missing_ok=True)
+    except Exception as exc:
+        record_upload_diagnostic(filename, len(content), path, "failed", exc)
+        if path is not None:
+            path.unlink(missing_ok=True)
         raise
+    record_upload_diagnostic(filename, len(content), path, "decoded")
     asset_id = uuid.uuid4().hex
     timestamp = now()
-    name = Path(filename).stem[:80] or "临时参考音频"
+    name = Path(filename).stem[:80] or "\u4e34\u65f6\u53c2\u8003\u97f3\u9891"
     with DB.transaction() as connection:
         connection.execute(
             "INSERT INTO voices(id,name,path,saved,created_at,metadata_json,health_json) VALUES(?,?,?,?,?,?,?)",
@@ -417,14 +445,13 @@ def add_upload(filename: str, content: bytes) -> dict[str, Any]:
         )
     return get_voice(asset_id)
 
-
 def _voice_from_row(row) -> dict[str, Any]:
     metadata = json.loads(row["metadata_json"] or "{}")
+    available = audio_file_available(row["path"])
     return {
         "id": row["id"], "name": row["name"], "saved": bool(row["saved"]), "created_at": row["created_at"],
-        "artifact_url": f"/api/v2/artifacts/{row['id']}", "health": json.loads(row["health_json"]), **metadata,
+        "artifact_url": f"/api/v2/artifacts/{row['id']}", "available": available, "health": json.loads(row["health_json"]), **metadata,
     }
-
 
 def list_voices() -> list[dict[str, Any]]:
     return [_voice_from_row(row) for row in DB.query("SELECT * FROM voices ORDER BY saved DESC, created_at DESC")]

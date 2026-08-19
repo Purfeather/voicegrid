@@ -3,6 +3,7 @@ import { AudioLines, Download, FolderOpen, Heart, Square } from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
 import type { HardwareMetrics, ModuleDescriptor, OutputRecord, ProjectDetail, RuntimeSnapshot, SoundEffectDraft, TaskRecord, ThemeId } from "../../types";
 import { api } from "../../services/api";
+import { mergeTaskList, upsertTask } from "../../utils/taskList";
 import { registerExitSaveHandler } from "../../services/exitCoordinator";
 import { TitleBar } from "../../components/TitleBar";
 import { Badge, Button, EmptyState, Field, IconButton, Progress, Section, TextArea, TextInput } from "../../components/UI";
@@ -12,6 +13,7 @@ import { OptionalModuleColumn, OptionalModuleWorkbench } from "../modules/Option
 import { AssetLibrary, ModuleActivityActions, ModuleActivityOutputRow, ModuleActivityTaskRow, ModuleActivityTimeline, ModuleCurrentOutput, ModuleGenerateButton, ModuleGenerateCard, ModuleOutputPlayer, ModuleParameterRail } from "../modules/ModuleWorkbenchShell";
 import { SoundEffectAssetRows } from "./SoundEffectAssetRows";
 import styles from "./soundEffect.module.css";
+import { useTaskActivitySync } from "../../hooks/useTaskActivitySync";
 
 interface Props {
   modules: ModuleDescriptor[];
@@ -48,6 +50,7 @@ export function SoundEffectWorkbench(props: Props) {
   const editVersion = useRef(0);
   const saveQueue = useRef<Promise<void>>(Promise.resolve());
   const exitInProgress = useRef(false);
+  const submitLock = useRef(false);
   const interactive = Boolean(module?.installed && module.engine_available);
 
   const refresh = useCallback(async (preserveDraft = false) => {
@@ -57,7 +60,7 @@ export function SoundEffectWorkbench(props: Props) {
     revision.current = Math.max(revision.current, detail.revision);
     setProject(detail);
     if (!preserveDraft || !dirty.current) setDraft(detail.workspaces.sound_effect);
-    setTasks(taskList);
+    setTasks((current) => mergeTaskList(current, taskList, projectId, "sound_effect"));
     setHistory(outputs);
     setSelected((current) => outputs.find((item) => item.id === current?.id) || outputs[0] || null);
     if (!preserveDraft || !dirty.current) {
@@ -75,7 +78,7 @@ export function SoundEffectWorkbench(props: Props) {
     const [taskList, outputs] = await Promise.all([
       api.tasks(projectId, "sound_effect"), api.history(projectId, "sound_effect"),
     ]);
-    setTasks(taskList);
+    setTasks((current) => mergeTaskList(current, taskList, projectId, "sound_effect"));
     setHistory(outputs);
     setSelected((current) => outputs.find((item) => item.id === current?.id) || outputs[0] || null);
   }, [projectId]);
@@ -96,12 +99,6 @@ export function SoundEffectWorkbench(props: Props) {
   }, [project]);
 
   useEffect(() => { refresh().catch((error) => setLoadError(error instanceof Error ? error.message : "项目载入失败")); }, [refresh]);
-  useEffect(() => {
-    if (!interactive) return;
-    const hasActiveTask = tasks.some((task) => task.status === "running" || task.status === "queued");
-    const timer = window.setInterval(() => void refreshActivity().catch(() => undefined), hasActiveTask ? 900 : 4000);
-    return () => window.clearInterval(timer);
-  }, [interactive, refreshActivity, tasks]);
   useEffect(() => {
     if (!dirty.current || !draft || !project || !interactive) return;
     setSaveState("保存中…");
@@ -136,12 +133,14 @@ export function SoundEffectWorkbench(props: Props) {
 
   async function generate() {
     if (!project || !draft || !interactive) return;
+    if (submitLock.current) return;
+    submitLock.current = true;
     try {
       if (dirty.current) await queueSave(draft, editVersion.current);
       const task = await api.createModuleTask(project.id, "sound_effect", draft);
-      setTasks((current) => [task, ...current]);
+      setTasks((current) => upsertTask(current, task));
       props.onMessage("音效生成任务已加入全局队列。", "success");
-    } catch (error) { props.onMessage(error instanceof Error ? error.message : "无法创建音效生成任务", "error"); }
+    } catch (error) { props.onMessage(error instanceof Error ? error.message : "无法创建音效生成任务", "error"); } finally { submitLock.current = false; }
   }
 
   async function closeProject() {
@@ -183,6 +182,13 @@ export function SoundEffectWorkbench(props: Props) {
   const activeTask = tasks.find((task) => task.status === "running" || task.status === "queued");
   const visibleTasks = tasks.filter((task) => task.status !== "completed" || !history.some((output) => output.task_id === task.id));
 
+  useTaskActivitySync({
+    projectId,
+    module: "sound_effect",
+    tasks,
+    setTasks,
+    reconcile: refreshActivity,
+  });
   if (loadError || !project || !draft) return <><TitleBar runtime={props.runtime} metrics={props.metrics} theme={props.theme} onTheme={props.onTheme} onBack={() => navigate("/projects")} onRelease={async () => props.onRuntime(await api.releaseRuntime())} /><ModuleTabs modules={props.modules} /><main className={styles.loading}><EmptyState title={loadError ? "项目无法打开" : "正在准备音效模块"} detail={loadError || "正在读取项目草稿与音效历史…"} /></main></>;
 
   return <>
@@ -221,11 +227,11 @@ export function SoundEffectWorkbench(props: Props) {
           </div>
         </ModuleGenerateCard>
         <ModuleCurrentOutput actions={selected?.favorite ? <Badge tone="accent"><Heart size={11} fill="currentColor" /> 已收藏</Badge> : undefined}>
-          {interactive ? <ModuleOutputPlayer module="sound_effect" output={selected} emptyDetail="生成完成后会先写入项目素材库，再显示在这里。" onOpen={(output) => api.openArtifact(output.id)} /> : <><div className={styles.previewAsset}><span><AudioLines size={20} /></span><div><strong>雨夜城市街道</strong><small>48 kHz · 单声道 · 10 秒</small></div></div><div className={styles.fakeWave}>{Array.from({ length: 72 }, (_, index) => <i key={index} style={{ height: `${12 + ((index * 17) % 48)}%` }} />)}</div><div className={styles.lockedActions}><Button variant="secondary" icon={<FolderOpen size={14} />} disabled>打开目录</Button><Button variant="primary" icon={<Download size={14} />} disabled>下载</Button></div></>}
+          {interactive ? <ModuleOutputPlayer module="sound_effect" output={selected} emptyDetail="生成完成后会先写入项目素材库，再显示在这里。" onOpen={(output) => api.openArtifact(output.id)} onMessage={props.onMessage} /> : <><div className={styles.previewAsset}><span><AudioLines size={20} /></span><div><strong>雨夜城市街道</strong><small>48 kHz · 单声道 · 10 秒</small></div></div><div className={styles.fakeWave}>{Array.from({ length: 72 }, (_, index) => <i key={index} style={{ height: `${12 + ((index * 17) % 48)}%` }} />)}</div><div className={styles.lockedActions}><Button variant="secondary" icon={<FolderOpen size={14} />} disabled>打开目录</Button><Button variant="primary" icon={<Download size={14} />} disabled>下载</Button></div></>}
         </ModuleCurrentOutput>
-        <ModuleActivityTimeline actions={<ModuleActivityActions clearDisabled={!history.length && !tasks.length} onClear={async () => { if (!window.confirm("清除音效任务与历史记录吗？音频文件会保留。")) return; await api.clearActivity(project.id, false, "sound_effect"); await refreshActivity(); }} onOpenFolder={() => api.openProjectOutputFolder(project.id, "sound_effect")} />}>
+        <ModuleActivityTimeline actions={<ModuleActivityActions clearDisabled={!history.length && !tasks.length} onClear={async () => { if (!window.confirm("清除音效任务与历史记录吗？音频文件会保留。")) return; await api.clearActivity(project.id, false, "sound_effect"); setTasks((current) => current.filter((task) => task.status === "queued" || task.status === "running")); setHistory([]); setSelected(null); }} onOpenFolder={() => api.openProjectOutputFolder(project.id, "sound_effect")} />}>
           <div className={styles.historyList}>
-            {visibleTasks.map((task) => <ModuleActivityTaskRow key={task.id} task={task} onCancel={async (item) => { await api.cancelTask(item.id); }} onRemove={async (item) => { await api.removeTask(item.id); await refreshActivity(); }} />)}
+            {visibleTasks.map((task) => <ModuleActivityTaskRow key={task.id} task={task} onCancel={async (item) => { await api.cancelTask(item.id); }} onRemove={async (item) => { const result = await api.removeTask(item.id); if (result.pending && result.task) setTasks((current) => upsertTask(current, result.task!)); else setTasks((current) => current.filter((task) => task.id !== item.id)); }} />)}
             {history.map((output) => <ModuleActivityOutputRow key={output.id} module="sound_effect" output={output} selected={selected?.id === output.id} onSelect={setSelected} trailing={output.favorite ? <Heart size={11} fill="currentColor" /> : <em>WAV</em>} />)}
             {!tasks.length && !history.length && <EmptyState title="暂无任务与输出" detail="生成任务和音效结果会按时间保存在当前项目。" />}
           </div>

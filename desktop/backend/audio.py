@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import hashlib
+import json
 import math
+import os
 import re
 import uuid
 from pathlib import Path
@@ -8,11 +11,13 @@ from typing import Any
 
 import numpy as np
 import soundfile as sf
+from .diagnostics import append_diagnostic_log
 
 from .paths import ROOT, UPLOADS_DIR
 
 
 AUDIO_SUFFIXES = {".wav", ".flac", ".mp3", ".ogg", ".m4a"}
+MAX_UPLOAD_BYTES = 256 * 1024 * 1024
 
 
 def internal_audio_path(value: str | Path) -> Path:
@@ -27,14 +32,72 @@ def internal_audio_path(value: str | Path) -> Path:
     return path
 
 
+def audio_file_available(value: str | Path) -> bool:
+    try:
+        path = internal_audio_path(value)
+    except (OSError, ValueError):
+        return False
+    return path.is_file() and path.stat().st_size > 0
+
+
+def record_upload_diagnostic(
+    filename: str,
+    content_size: int,
+    path: Path | None,
+    stage: str,
+    error: Exception | None = None,
+) -> None:
+    safe_name = Path(filename or "reference.wav").name
+    payload: dict[str, Any] = {
+        "filename": safe_name,
+        "extension": Path(safe_name).suffix.lower(),
+        "received_bytes": int(content_size),
+        "stage": stage,
+    }
+    if path is not None:
+        try:
+            payload.update({
+                "target_exists": path.exists(),
+                "target_is_file": path.is_file(),
+                "written_bytes": path.stat().st_size if path.is_file() else 0,
+                "content_prefix": path.read_bytes()[:16].hex() if path.is_file() else "",
+                "sha256_prefix": hashlib.sha256(path.read_bytes()).hexdigest()[:16] if path.is_file() else "",
+            })
+        except OSError:
+            payload.update({"target_exists": path.exists(), "target_is_file": False})
+    if error is not None:
+        payload["error"] = f"{type(error).__name__}: {error}"
+    append_diagnostic_log("audio-upload", json.dumps(payload, ensure_ascii=False, separators=(",", ":")))
+
 def save_upload(filename: str, content: bytes) -> Path:
     suffix = Path(filename or "reference.wav").suffix.lower()
+    if not content:
+        raise ValueError("\u4e0a\u4f20\u6587\u4ef6\u4e3a\u7a7a\u6216\u8bfb\u53d6\u5931\u8d25\uff0c\u8bf7\u91cd\u65b0\u9009\u62e9\u97f3\u9891\u3002")
+    if len(content) > MAX_UPLOAD_BYTES:
+        raise ValueError("\u53c2\u8003\u97f3\u9891\u4e0d\u80fd\u8d85\u8fc7 256MB\u3002")
     if suffix not in AUDIO_SUFFIXES:
         raise ValueError("只支持 WAV、FLAC、MP3、OGG 和 M4A 音频。")
     stem = re.sub(r"[^0-9A-Za-z_\-\u4e00-\u9fff]+", "_", Path(filename).stem)[:48] or "reference"
     target = UPLOADS_DIR / f"{uuid.uuid4().hex}_{stem}{suffix}"
-    target.write_bytes(content)
-    return target
+    partial = target.with_name(f"{target.name}.partial")
+    try:
+        UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
+        with partial.open("xb") as handle:
+            handle.write(content)
+            handle.flush()
+            os.fsync(handle.fileno())
+        if not partial.is_file() or partial.stat().st_size != len(content):
+            raise OSError("Audio upload was not written completely.")
+        partial.replace(target)
+        if not target.is_file() or target.stat().st_size != len(content):
+            raise OSError("Audio upload failed its storage check.")
+        return target
+    except ValueError:
+        partial.unlink(missing_ok=True)
+        raise
+    except OSError as exc:
+        partial.unlink(missing_ok=True)
+        raise OSError("\u97f3\u9891\u6587\u4ef6\u4fdd\u5b58\u5931\u8d25\uff0c\u8bf7\u68c0\u67e5\u76ee\u5f55\u6743\u9650\u548c\u78c1\u76d8\u7a7a\u95f4\u3002") from exc
 
 
 def _frame_rms(mono: np.ndarray, sample_rate: int) -> np.ndarray:
@@ -48,7 +111,14 @@ def _frame_rms(mono: np.ndarray, sample_rate: int) -> np.ndarray:
 
 def analyze_audio(path_value: str | Path) -> dict[str, Any]:
     path = internal_audio_path(path_value)
-    audio, sample_rate = sf.read(str(path), always_2d=True, dtype="float32")
+    if path.stat().st_size <= 0:
+        raise ValueError("\u4e0a\u4f20\u6587\u4ef6\u4e3a\u7a7a\u6216\u8bfb\u53d6\u5931\u8d25\uff0c\u8bf7\u91cd\u65b0\u9009\u62e9\u97f3\u9891\u3002")
+    try:
+        audio, sample_rate = sf.read(str(path), always_2d=True, dtype="float32")
+    except Exception as exc:
+        if path.suffix.lower() == ".mp3":
+            raise ValueError("\u5f53\u524d\u8fd0\u884c\u73af\u5883\u65e0\u6cd5\u89e3\u7801\u8be5 MP3 \u6587\u4ef6\uff0c\u8bf7\u8f6c\u6362\u4e3a WAV \u6216 FLAC \u540e\u91cd\u8bd5\u3002") from exc
+        raise ValueError("\u97f3\u9891\u6587\u4ef6\u4e0d\u5b8c\u6574\u6216\u5df2\u635f\u574f\uff0c\u8bf7\u91cd\u65b0\u9009\u62e9\u3002") from exc
     if audio.size == 0:
         raise ValueError("音频为空。")
     mono = np.mean(audio, axis=1)
@@ -121,7 +191,14 @@ def prepare_trimmed_reference(path_value: str | Path, start: float, end: float |
     path = internal_audio_path(path_value)
     if start <= 0 and end is None:
         return path
-    audio, sample_rate = sf.read(str(path), always_2d=True, dtype="float32")
+    if path.stat().st_size <= 0:
+        raise ValueError("\u4e0a\u4f20\u6587\u4ef6\u4e3a\u7a7a\u6216\u8bfb\u53d6\u5931\u8d25\uff0c\u8bf7\u91cd\u65b0\u9009\u62e9\u97f3\u9891\u3002")
+    try:
+        audio, sample_rate = sf.read(str(path), always_2d=True, dtype="float32")
+    except Exception as exc:
+        if path.suffix.lower() == ".mp3":
+            raise ValueError("\u5f53\u524d\u8fd0\u884c\u73af\u5883\u65e0\u6cd5\u89e3\u7801\u8be5 MP3 \u6587\u4ef6\uff0c\u8bf7\u8f6c\u6362\u4e3a WAV \u6216 FLAC \u540e\u91cd\u8bd5\u3002") from exc
+        raise ValueError("\u97f3\u9891\u6587\u4ef6\u4e0d\u5b8c\u6574\u6216\u5df2\u635f\u574f\uff0c\u8bf7\u91cd\u65b0\u9009\u62e9\u3002") from exc
     start_frame = max(0, min(len(audio), int(start * sample_rate)))
     end_frame = len(audio) if end is None else max(start_frame + 1, min(len(audio), int(end * sample_rate)))
     target = UPLOADS_DIR / f"trim_{uuid.uuid4().hex}.wav"

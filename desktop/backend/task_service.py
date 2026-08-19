@@ -55,6 +55,20 @@ def estimate_speed_tokens(text: str, level: str) -> int:
     return spoken_tokens + pause_tokens
 
 
+def normalize_speech_workspace(workspace: dict[str, Any]) -> dict[str, Any]:
+    normalized = dict(workspace)
+    asset_id = normalized.get("voice_id") or normalized.get("reference_id")
+    if not asset_id:
+        return normalized
+    try:
+        voice_path(str(asset_id))
+    except (OSError, ValueError):
+        normalized["voice_id"] = None
+        normalized["reference_id"] = None
+        normalized["reference_trim_start"] = 0
+        normalized["reference_trim_end"] = None
+    return normalized
+
 def build_generation_snapshot(workspace: dict[str, Any]) -> dict[str, Any]:
     style = str(workspace.get("style") or "")
     instruction = str(workspace.get("instruction") or "").strip()
@@ -155,6 +169,7 @@ class TaskService:
     def create(self, project_id: str, workspace: dict[str, Any]) -> dict[str, Any]:
         if not MODULE_SERVICE.describe("speech")["installed"]:
             raise FileNotFoundError("请先安装或重新检测 MOSS-TTS v1.5 4B 与 MOSS-Audio-Tokenizer-v2。")
+        workspace = normalize_speech_workspace(workspace)
         return self._create(project_id, "speech", workspace, build_generation_snapshot(workspace))
 
     def create_voice_design(self, project_id: str, workspace: dict[str, Any]) -> dict[str, Any]:

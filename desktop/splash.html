@@ -131,8 +131,13 @@
       document.getElementById("build-product").textContent = build.product;
       document.getElementById("build-attribution").textContent = identity.organization;
       document.getElementById("build-author").textContent = `作者：${identity.author}`;
-      document.getElementById("build-version").textContent = build.version;
+      document.getElementById("build-version").textContent = visibleVersion(build.version);
     }).catch(() => {});
+    function visibleVersion(value) {
+      const core = String(value || "").split("-", 1)[0];
+      const parts = core.split(".");
+      return parts.length >= 3 ? parts[0] + "." + parts[1] + parts[2] : core;
+    }
     const phases = ["shell", "backend_import", "database", "project_recovery", "api", "frontend", "ready"];
     const phaseNames = {
       shell: "正在创建桌面窗口",

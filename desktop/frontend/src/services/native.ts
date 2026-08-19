@@ -1,4 +1,5 @@
 import type { StartupStatus } from "../types";
+import { formatApiErrorPayload } from "./errors";
 import { flushActiveProjectForExit } from "./exitCoordinator";
 
 type NativeBridge = {
@@ -12,6 +13,7 @@ type NativeBridge = {
   frontend_ready?: () => Promise<StartupStatus> | StartupStatus;
   frontend_event?: (event: string, message: string) => Promise<boolean> | boolean;
   exit_save_completed?: (success: boolean) => Promise<boolean> | boolean;
+  save_artifact?: (asset_id: string, suggested_name: string) => Promise<ArtifactSaveResult> | ArtifactSaveResult;
 };
 
 declare global {
@@ -77,6 +79,28 @@ export async function openLogFolder(): Promise<boolean> {
   return (await (await waitForBridge())?.open_log_folder?.()) ?? false;
 }
 
+export type ArtifactSaveResult = {
+  status: "saved" | "cancelled";
+  filename?: string;
+};
+
+export async function saveArtifact(assetId: string, suggestedName: string): Promise<ArtifactSaveResult> {
+  const bridge = await waitForBridge(350);
+  if (bridge?.save_artifact) return bridge.save_artifact(assetId, suggestedName);
+  const response = await fetch(`/api/v2/artifacts/${encodeURIComponent(assetId)}?download=true`);
+  if (!response.ok) {
+    const payload = await response.json().catch(() => null);
+    throw new Error(formatApiErrorPayload(payload?.detail ?? payload, `下载失败（${response.status}）`));
+  }
+  const blob = await response.blob();
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = suggestedName;
+  anchor.click();
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+  return { status: "saved", filename: suggestedName };
+}
 export async function notifyFrontendReady(): Promise<void> {
   await (await waitForBridge(5000))?.frontend_ready?.();
 }
